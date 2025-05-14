@@ -1,3 +1,4 @@
+azure-ai-documentintelligence==1.0.2
 azure-core==1.33.0
 azure-functions==1.23.0
 azure-identity==1.21.0

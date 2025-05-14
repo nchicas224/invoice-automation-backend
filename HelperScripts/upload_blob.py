@@ -4,9 +4,9 @@ from azure.storage.blob import BlobClient
 from azure.storage.queue import QueueClient
 
 conn_str = "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
-blob = BlobClient.from_connection_string(conn_str=conn_str, container_name="invoices-raw", blob_name="invoice_test")
+blob = BlobClient.from_connection_string(conn_str=conn_str, container_name="invoices-raw", blob_name="adobe_test")
 
-file_path = Path("..") / "Invoices" / "POWER House.pdf"
+file_path = Path("..") / "Invoices" / "Foundation_Wide.pdf"
 
 with open(file_path, "rb") as f:
     blob.upload_blob(f, overwrite=True)
