@@ -66,12 +66,12 @@ jobs:
       - name: Unzip artifact for deployment
         run: unzip release.zip     
         
-      - name: Login to Azure
+      - name: Login to Azure using OIDC
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_4E8DBE63D7FA4705AB7B68249D69132F }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_58E5DF3228C2498C881761AA2C5113DE }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_9FC9052BD8064E67A9B5F1AC7D3E413D }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: 'Deploy to Azure Functions'
         uses: Azure/functions-action@v1
