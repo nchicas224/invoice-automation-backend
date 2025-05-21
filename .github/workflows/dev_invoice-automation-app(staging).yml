@@ -65,7 +65,7 @@ jobs:
         with:
           name: python-app
 
-      - name: Unzip artifact into staging directory for deployment
+      - name: Unzip artifact into staging directory for deploymentt
         run: unzip release.zip -d staging    
         
       - name: Login to Azure using OIDC
