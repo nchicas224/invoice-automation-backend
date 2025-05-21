@@ -91,5 +91,5 @@ jobs:
           ls -la
         
       - name: Show deployment zip strucutre
-        run: unzip -l /home/runner/work/_temp/temp_web_package_*.zip
+        run: unzip -l /home/runner/work/_temp/temp_web_package_/release.zip
           
