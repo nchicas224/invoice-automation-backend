@@ -65,8 +65,8 @@ jobs:
         with:
           name: python-app
 
-      - name: Unzip artifact for deployment
-        run: unzip -l release.zip     
+      - name: Unzip artifact into staging directory for deployment
+        run: unzip release.zip -d staging    
         
       - name: Login to Azure using OIDC
         uses: azure/login@v2
@@ -81,7 +81,7 @@ jobs:
         with:
           app-name: 'invoice-automation-app'
           slot-name: 'staging'
-          package: release.zip
+          package: staging
           scm-do-build-during-deployment: true
           enable-oryx-build: true
         
