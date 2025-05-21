@@ -101,7 +101,8 @@ jobs:
         run: |
           az functionapp deployment source config-zip \
           --resource-group "rg-invoice-automation" \
-          --name "invoice-automation-app/slots/staging" \
+          --name "invoice-automation-app" \
+          --slot "staging" \
           --src "release.zip" \
           --debug
           
