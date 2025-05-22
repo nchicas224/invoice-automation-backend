@@ -125,10 +125,10 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
         try:
             cosmos_container = get_db_client().get_container_client("Subscriptions")
             cosmos_container.upsert_item({
-                "id": "subscription",
-                "subId": result.id,
+                "id": result.id,
+                "subscription": "subscription",
                 "notifcationUrl": "invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
-                "resource": "/users/mailFolders('Inbox')/messages",
+                "resource": f"/users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages",
                 "expirationDateTime": next_expiry,
                 "nextFailSafe": next_failsafe
             })
