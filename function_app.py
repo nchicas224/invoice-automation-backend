@@ -32,6 +32,7 @@ app = func.FunctionApp()
 async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     # Graph API handshake
     if req.method == "GET" and "validationToken" in req.params:
+        logging.warning("[notify_new_mail]:Verified token...POSTING")
         return func.HttpResponse(req.params["validationToken"], status_code=200)
     
     initialize_logger()
@@ -76,7 +77,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse(status_code=202)
 
 @app.function_name(name="SubscriptionRenewalTimer")
-@app.timer_trigger(schedule="0 */5 * * * *",
+@app.timer_trigger(schedule="0 */2 * * * *",
                    arg_name="timer")
 async def renew_subscription(timer: func.TimerRequest) -> None:
     initialize_logger()
