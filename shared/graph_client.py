@@ -2,7 +2,8 @@ import logging, os
 from azure.identity.aio import DefaultAzureCredential, ClientSecretCredential
 from msgraph import GraphServiceClient
 
-env = os.getenv("ENV")
+if os.getenv("ENV"):
+    env = os.getenv("ENV")
 _graph_client = None
 
 ## Graph Client
