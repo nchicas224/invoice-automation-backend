@@ -1,8 +1,8 @@
 
 import os, logging, json, uuid
 logging.info("function_app.py loaded!")
-# import secrets
-# import HelperScripts as hs
+import secrets
+import HelperScripts as hs
 import azure.functions as func
 # import azure.durable_functions as df
 # import asyncio
