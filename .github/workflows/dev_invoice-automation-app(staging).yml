@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.' # set this to the path to your web app project, defaults to the repository root
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: 'invoice-automation-app' # set this to the path to your web app project, defaults to the repository root
   PYTHON_VERSION: '3.12' # set this to the python version to use (supports 3.6, 3.7, 3.8)
 
 jobs:
@@ -39,7 +39,6 @@ jobs:
       - name: 'Resolve Project Dependencies Using Pip'
         shell: bash
         run: |
-          pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
           echo "Current directory:"
           pwd
           echo "Contents:"
@@ -47,23 +46,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt --target=".python_packages/lib/site-packages"
           echo "Zipping function app contents..."
-          zip -r ../release.zip . -x "venv/*" ".venv/*" ".git/*" ".vscode/*" "__pycache__/*" "*.pyc" "*.pyo" "*.pyd"
-          popd
+          zip -r release.zip . -x "venv/*" ".venv/*" ".git/*" ".vscode/*" "__pycache__/*" "*.pyc" "*.pyo" "*.pyd"
           echo "Current directory:"
           pwd
           echo "Contents:"
-          ls -la
-          cd ..
-          pwd
+          ls -la  
 
       # Optional: Add step to run tests here
-
-      - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-app
-          path: |
-            release.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -73,11 +62,6 @@ jobs:
       contents: read #This is required for actions/checkout
 
     steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v4
-        with:
-          name: python-app
-
       - name: Unzip artifact into staging directory for deploymentt
         run: unzip -l release.zip
         
