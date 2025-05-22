@@ -32,8 +32,9 @@ app = func.FunctionApp()
 async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     # Graph API handshake
     if req.method == "POST":
-        logging.warning("[notify_new_mail]:Checking validationToken...")
-        if req.params("validationToken"):
+        logging.warning("[notify_new_mail]:Checking Validation Token...")
+        if req.params["validationToken"]:
+             logging.warning("[notify_new_mail]:Validation token found...")
              return func.HttpResponse(req.params["validationToken"], status_code=200)
         else:
             logging.warning("[notify_new_mail]:Token validation failed.")
