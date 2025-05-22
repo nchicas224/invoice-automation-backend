@@ -58,7 +58,7 @@ jobs:
         run: |
           echo "Testing import of function_app.py"
           set -ex
-          python -c "import function_app"
+          PYTHONPATH=.python_packages/lib/site-packages python -c "import function_app"
 
       # - name: Unzip artifact into staging directory for deploymentt
       #   run: |
