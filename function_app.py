@@ -33,15 +33,18 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     initialize_logger()
     # Graph API handshake
     if req.method == "GET" and "validationToken" in req.params:
-        logging.warning("ValidationToken found in GET METHOD")
         return func.HttpResponse(req.params["validationToken"], status_code=200)
     
     #Validate ClientState
-    body = req.get_json()
-    for note in body.get("value",[]):
-        if note.get("ClientState") != os.environ["CLIENT_STATE"]:
-            logging.warning("Returning 401, ClientState not authorized or missing.")
-            return func.HttpResponse(status_code=401)
+    try:
+        body = req.get_json()
+        for note in body.get("value",[]):
+            if note.get("ClientState") != os.environ["CLIENT_STATE"]:
+                logging.warning("Returning 401, ClientState not authorized or missing.")
+                return func.HttpResponse(status_code=401)
+    except Exception as e:
+        logging.error(f"JSON body parse or ClientState check failed {e}")
+        return func.HttpResponse(status_code=400)
     logging.warning("ClientState verified")
 
     # Validate Subscription
