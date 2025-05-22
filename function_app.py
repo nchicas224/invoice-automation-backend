@@ -31,7 +31,7 @@ app = func.FunctionApp()
 #@app.durable_client_input(client_name="client")
 async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     # Graph API handshake
-    if req.method == "GET":
+    if req.method == "POST":
         logging.warning("[notify_new_mail]:Checking validationToken...")
         if req.params("validationToken"):
              return func.HttpResponse(req.params["validationToken"], status_code=200)
@@ -39,9 +39,9 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
             logging.warning("[notify_new_mail]:Token validation failed.")
             return func.HttpResponse(status_code=404)
     else:
-        logging.warning("[notify_new_mail]:GET was not found in method.")
+        logging.warning("[notify_new_mail]:POST was not found in method.")
         logging.warning(f"[notify_new_mail]:Request Method: {req.method}")
-        
+
     initialize_logger()
 
     #Validate ClientState
