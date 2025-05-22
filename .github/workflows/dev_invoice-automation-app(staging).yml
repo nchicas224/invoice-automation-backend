@@ -46,6 +46,8 @@ jobs:
           ls -la
           python -m pip install --upgrade pip
           pip install -r requirements.txt --target=".python_packages/lib/site-packages"
+          echo "Zipping function app contents..."
+          zip -r ../release.zip . -x "venv/*" ".venv/*" ".git/*" ".vscode/*" "__pycache__/*" "*.pyc" "*.pyo" "*.pyd"
           popd
           echo "Current directory:"
           pwd
@@ -53,9 +55,6 @@ jobs:
           ls -la
 
       # Optional: Add step to run tests here
-
-      - name: Zip artifact for deployment
-        run: zip -r release.zip . -x "venv/*" ".git/*" ".vscode/*"
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
