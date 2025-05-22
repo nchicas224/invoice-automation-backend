@@ -40,12 +40,12 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
         body = req.get_json()
         for note in body.get("value",[]):
             if note.get("ClientState") != os.environ["CLIENT_STATE"]:
-                logging.warning("Returning 401, ClientState not authorized or missing.")
+                logging.error("Returning 401, ClientState not authorized or missing.")
                 return func.HttpResponse(status_code=401)
     except Exception as e:
         logging.error(f"JSON body parse or ClientState check failed {e}")
         return func.HttpResponse(status_code=400)
-    logging.warning("ClientState verified")
+    logging.info("[notify_new_mail]:ClientState verified")
 
     # Validate Subscription
     database_client = get_db_client()
@@ -57,7 +57,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
         next_renewal.replace(tzinfo=timezone.utc)
 
         if datetime.now(timezone.utc) >= next_renewal:
-            logging.info("Running subscription renewal failsafe")
+            logging.warning("Running subscription renewal failsafe...")
             #failsafe_counter.add(1)
             next_expiry = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat() + "Z"
             graph_client = await get_graph_client()
@@ -89,14 +89,13 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
     client_state = secrets.token_urlsafe(32)
     next_expiry = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
     next_failsafe = (datetime.now(timezone.utc) + timedelta(minutes=3)).isoformat()
-    logging.warning(next_expiry)
+    logging.info(f"[renew_subscription]:New expiration date -> {next_expiry}")
 
-    logging.warning("Submitting new subscription...")
-    logging.info("[INFO:renew_subscription]: Submitting new subscription...")
+    
     request_body = Subscription(
         change_type = "created",
-        notification_url= "invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
-        resource= "/users/mailFolders('Inbox')/messages",
+        notification_url= "https://invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
+        resource= "users{da59e8e3-205e-40c1-9059-238b64e791e6}/mailFolders('Inbox')/messages",
         expiration_date_time= next_expiry,
         client_state= client_state,
         latest_supported_tls_version= "v1_2"
@@ -104,6 +103,7 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
 
     result = None
     graph_client = await get_graph_client()
+    logging.info("[renew_subscription]:Submitting new subscription...")
     try:
         result = await graph_client.subscriptions.post(request_body) #-> Bad Request 400 on the subscription post...Check JSON body.
         logging.info(result)
@@ -121,7 +121,7 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
                 "expirationDateTime": next_expiry,
                 "nextFailSafe": next_failsafe
             })
-            logging.info(f"Successfully uploaded Subscription record to: {cosmos_container.id}")
+            logging.info(f"[renew_subscription]:Successfully uploaded Subscription record to: {cosmos_container.id}")
         except CosmosHttpResponseError as e:
             logging.warning(f"Failed to upload Subscription to {cosmos_container.id}: {e.message}")
     else:

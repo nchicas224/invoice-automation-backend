@@ -90,7 +90,6 @@ jobs:
           --name "invoice-automation-app" \
           --slot "staging" \
           --src "release.zip" \
-          --debug
           
       # - name: Check release.zip files after deployment
       #   run: unzip -l release.zip    
