@@ -15,9 +15,10 @@ env:
   PYTHON_VERSION: '3.12' # set this to the python version to use (supports 3.6, 3.7, 3.8)
 
 jobs:
-  build:
+  BuildDeploy:
     runs-on: ubuntu-latest
     permissions:
+      id-token: write #Required for federated token
       contents: read #This is required for actions/checkout
 
     steps:
@@ -53,7 +54,7 @@ jobs:
           ls -la  
 
       # Optional: Add step to run tests here
-      
+
       - name: Unzip artifact into staging directory for deploymentt
         run: |
           echo "Current directory:"
