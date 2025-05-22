@@ -9,8 +9,10 @@ _graph_client = None
 
 ## Graph Client
 async def get_graph_client():
+    logging.info("[get_graph_client]:Starting...")
     global _graph_client
     if _graph_client is None:
+        logging.info("[get_graph_client]:No Graph Client found. Initializing...")
         if env == "dev":
             credentials = ClientSecretCredential(client_id=os.environ["AZURE_CLIENT_ID"],
                                         tenant_id=os.environ["AZURE_TENANT_ID"],
@@ -28,4 +30,6 @@ async def get_graph_client():
                 logging.warning("Reponse was empty...")
         except ValueError as e:
             logging.error(f"Failed Graph connection: {e}")
+        
+    logging.info("[get_graph_client]:Returning Graph Client...")
     return _graph_client
