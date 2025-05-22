@@ -30,10 +30,11 @@ app = func.FunctionApp()
     auth_level=func.AuthLevel.ANONYMOUS)
 #@app.durable_client_input(client_name="client")
 async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
-    initialize_logger()
     # Graph API handshake
     if req.method == "GET" and "validationToken" in req.params:
         return func.HttpResponse(req.params["validationToken"], status_code=200)
+    
+    initialize_logger()
     
     #Validate ClientState
     try:
@@ -106,7 +107,8 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
     logging.info("[renew_subscription]:Submitting new subscription...")
     try:
         result = await graph_client.subscriptions.post(request_body) #-> Bad Request 400 on the subscription post...Check JSON body.
-        logging.info(result)
+
+        logging.info(f"[renew_subscription]: {result}")
     except Exception as e:
         logging.error(f"Failed to create or update webhook renewal: {e}")
     
