@@ -54,6 +54,7 @@ jobs:
           echo "Contents:"
           ls -la
           cd ..
+          pwd
 
       # Optional: Add step to run tests here
 
