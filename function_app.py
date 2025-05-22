@@ -2,23 +2,23 @@
 import os, logging, json, uuid
 logging.info("function_app.py loaded!")
 import secrets
-import HelperScripts as hs
+#import HelperScripts as hs
 import azure.functions as func
-# import azure.durable_functions as df
-# import asyncio
-# from datetime import datetime, timedelta, timezone
-# from azure.monitor.opentelemetry import configure_azure_monitor
-# from opentelemetry import trace, metrics
-# from azure.identity import ClientSecretCredential
-# from azure.identity.aio import DefaultAzureCredential
-# from msgraph import GraphServiceClient
-# from msgraph.generated.models.subscription import Subscription
-# from azure.cosmos import CosmosClient
-# from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosResourceNotFoundError
-# from openai import AzureOpenAI
-# from shared.graph_client import get_graph_client
-# from shared.database_client import get_db_client
-# from shared.azure_monitor import failsafe_counter, tracer, meter
+import azure.durable_functions as df
+import asyncio
+from datetime import datetime, timedelta, timezone
+from azure.monitor.opentelemetry import configure_azure_monitor
+from opentelemetry import trace, metrics
+from azure.identity import ClientSecretCredential
+from azure.identity.aio import DefaultAzureCredential
+from msgraph import GraphServiceClient
+from msgraph.generated.models.subscription import Subscription
+from azure.cosmos import CosmosClient
+from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosResourceNotFoundError
+from openai import AzureOpenAI
+from shared.graph_client import get_graph_client
+from shared.database_client import get_db_client
+from shared.azure_monitor import failsafe_counter, tracer, meter
 
 app = func.FunctionApp()
 
