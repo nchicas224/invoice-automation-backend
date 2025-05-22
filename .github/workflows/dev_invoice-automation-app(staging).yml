@@ -53,7 +53,12 @@ jobs:
           echo "Contents:"
           ls -la  
 
-      # Optional: Add step to run tests here
+      - name: Import smoke test
+        shell: bash
+        run: |
+          echo "Testing import of function_app.py"
+          set -ex
+          python -c "import function_app"
 
       # - name: Unzip artifact into staging directory for deploymentt
       #   run: |

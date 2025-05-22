@@ -18,7 +18,7 @@ from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosResourceNotFo
 from openai import AzureOpenAI
 from shared.graph_client import get_graph_client
 from shared.database_client import get_db_client
-from shared.azure_monitor import failsafe_counter, tracer, meter
+from shared.azure_monitor import failsafe_counter, tracer, meter, initialize_logger
 
 app = func.FunctionApp()
 
@@ -30,6 +30,7 @@ app = func.FunctionApp()
     auth_level=func.AuthLevel.ANONYMOUS)
 #@app.durable_client_input(client_name="client")
 async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
+    initialize_logger()
     # Graph API handshake
     if req.method == "GET" and "validationToken" in req.params:
         return func.HttpResponse(req.params["validationToken"], status_code=200)
@@ -72,6 +73,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
 @app.timer_trigger(schedule="0 */1 * * * *",
                    arg_name="timer")
 async def renew_subscription(timer: func.TimerRequest) -> None:
+    initialize_logger()
     if timer.past_due:
         logging.warning("Renewal Timer is past due! Check failsafe.")
     utc_timestamp = datetime.now().replace(tzinfo=timezone.utc).isoformat()
@@ -96,7 +98,7 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
     result = None
     graph_client = await get_graph_client()
     try:
-        result = await graph_client.subscriptions.post(request_body)
+        result = await graph_client.subscriptions.post(request_body) #-> Bad Request 400 on the subscription post...Check JSON body. Also need logging connection to App insights
         logging.info(result)
     except Exception as e:
         logging.error(f"Failed to create or update webhook renewal: {e}")
