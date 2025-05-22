@@ -10,8 +10,8 @@ def get_db_client():
     global _database
     if _database == None:
         # 1) Configuration for DB
-        endpoint = os.environ["DB_ENDPOINT"]
-        key = os.environ["DB_KEY"]
+        endpoint = os.getenv("DB_ENDPOINT")
+        key = os.getenv("DB_KEY")
         database_name  = "InvoiceDB"
 
         # 2) Init client & container

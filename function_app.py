@@ -117,17 +117,16 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
     logging.info("[renew_subscription]:Submitting new subscription...")
     try:
         result = await graph_client.subscriptions.post(request_body) #-> Bad Request 400 on the subscription post...Check JSON body.
-
         logging.info(f"[renew_subscription]: {result}")
     except Exception as e:
         logging.error(f"Failed to create or update webhook renewal: {e}")
     
-    if result and result.application_id:
+    if result and result.id:
         try:
             cosmos_container = get_db_client().get_container_client("Subscriptions")
             cosmos_container.upsert_item({
                 "id": "subscription",
-                "subId": result.application_id,
+                "subId": result.id,
                 "notifcationUrl": "invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
                 "resource": "/users/mailFolders('Inbox')/messages",
                 "expirationDateTime": next_expiry,
