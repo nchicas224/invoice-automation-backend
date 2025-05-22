@@ -1,3 +1,4 @@
+
 import os, logging, json, uuid
 import secrets
 import HelperScripts as hs
@@ -14,9 +15,9 @@ from msgraph.generated.models.subscription import Subscription
 from azure.cosmos import CosmosClient
 from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosResourceNotFoundError
 from openai import AzureOpenAI
-from shared.graph_client import get_graph_client
-from shared.database_client import get_db_client
-from shared.azure_monitor import failsafe_counter, tracer, meter
+# from shared.graph_client import get_graph_client
+# from shared.database_client import get_db_client
+# from shared.azure_monitor import failsafe_counter, tracer, meter
 
 app = func.FunctionApp()
 
