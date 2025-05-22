@@ -4,6 +4,7 @@ from msgraph import GraphServiceClient
 
 if os.getenv("ENV"):
     env = os.getenv("ENV")
+else: env = None
 _graph_client = None
 
 ## Graph Client
