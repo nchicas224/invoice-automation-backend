@@ -63,7 +63,11 @@ jobs:
 
     steps:
       - name: Unzip artifact into staging directory for deploymentt
-        run: unzip -l release.zip
+        run: |
+          echo "Current directory:"
+          pwd
+          echo "Contents:"
+          ls -la
         
       - name: Login to Azure using OIDC
         uses: azure/login@v2
