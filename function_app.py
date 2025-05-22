@@ -75,7 +75,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse(status_code=202)
 
 @app.function_name(name="SubscriptionRenewalTimer")
-@app.timer_trigger(schedule="0 */1 * * * *",
+@app.timer_trigger(schedule="0 */5 * * * *",
                    arg_name="timer")
 async def renew_subscription(timer: func.TimerRequest) -> None:
     initialize_logger()
@@ -95,7 +95,7 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
     request_body = Subscription(
         change_type = "created",
         notification_url= "https://invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
-        resource= "users{'da59e8e3-205e-40c1-9059-238b64e791e6'}/mailFolders('Inbox')/messages",
+        resource= "users/da59e8e3-205e-40c1-9059-238b64e791e6/mailFolders('Inbox')/messages",
         expiration_date_time= next_expiry,
         client_state= client_state,
         latest_supported_tls_version= "v1_2"
