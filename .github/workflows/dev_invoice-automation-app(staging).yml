@@ -53,6 +53,7 @@ jobs:
           pwd
           echo "Contents:"
           ls -la
+          cd ..
 
       # Optional: Add step to run tests here
 
@@ -61,7 +62,7 @@ jobs:
         with:
           name: python-app
           path: |
-            ../release.zip
+            release.zip
 
   deploy:
     runs-on: ubuntu-latest
