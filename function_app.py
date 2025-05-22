@@ -31,9 +31,13 @@ app = func.FunctionApp()
 #@app.durable_client_input(client_name="client")
 async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     # Graph API handshake
-    if req.method == "GET" and "validationToken" in req.params:
-        logging.warning("[notify_new_mail]:Verified token...POSTING")
-        return func.HttpResponse(req.params["validationToken"], status_code=200)
+    if req.method == "GET":
+        logging.warning("[notify_new_mail]:Checking validationToken...")
+        if req.params("validationToken"):
+             return func.HttpResponse(req.params["validationToken"], status_code=200)
+        else:
+            logging.warning("[notify_new_mail]:Token validation failed.")
+            return func.HttpResponse(status_code=404)
     
     initialize_logger()
 
@@ -76,6 +80,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     # Return Accepted -> Processing status to Graph API
     return func.HttpResponse(status_code=202)
 
+#Subscription Timer Trigger Function
 @app.function_name(name="SubscriptionRenewalTimer")
 @app.timer_trigger(schedule="0 */2 * * * *",
                    arg_name="timer")
