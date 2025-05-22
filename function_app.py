@@ -91,6 +91,8 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
     next_failsafe = (datetime.now(timezone.utc) + timedelta(minutes=3)).isoformat()
     logging.warning(next_expiry)
 
+    logging.warning("Submitting new subscription...")
+    logging.info("[INFO:renew_subscription]: Submitting new subscription...")
     request_body = Subscription(
         change_type = "created",
         notification_url= "invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
@@ -103,7 +105,7 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
     result = None
     graph_client = await get_graph_client()
     try:
-        result = await graph_client.subscriptions.post(request_body) #-> Bad Request 400 on the subscription post...Check JSON body. Also need logging connection to App insights
+        result = await graph_client.subscriptions.post(request_body) #-> Bad Request 400 on the subscription post...Check JSON body.
         logging.info(result)
     except Exception as e:
         logging.error(f"Failed to create or update webhook renewal: {e}")
