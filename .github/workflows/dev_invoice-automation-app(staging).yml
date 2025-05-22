@@ -106,3 +106,5 @@ jobs:
           --src "release.zip" \
           --debug
           
+      - name: Check release.zip files after deployment
+        run: unzip -l release.zip    
