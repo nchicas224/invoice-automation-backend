@@ -77,7 +77,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
             cosmos_container.replace_item(items="subscription", body=doc)
     except CosmosResourceNotFoundError:
         logging.warning("Error running failsafe: Updating subscription...")
-        await renew_subscription(func.TimerRequest)
+        #await renew_subscription(func.TimerRequest)
     # Send request JSON to upload_blob
     ## TODO
 
