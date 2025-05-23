@@ -31,7 +31,7 @@ app = func.FunctionApp()
 #@app.durable_client_input(client_name="client")
 async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     # Graph API handshake
-    if req.method == "POST":
+    if req.method == "POST" and req.params.get("validationToken"):
         logging.warning("[notify_new_mail]:Checking Validation Token...")
         if req.params["validationToken"]:
              logging.warning("[notify_new_mail]:Validation token found...")
@@ -40,12 +40,13 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
             logging.warning("[notify_new_mail]:Token validation failed.")
             return func.HttpResponse(status_code=404)
     else:
-        logging.warning("[notify_new_mail]:POST was not found in method.")
+        logging.warning("[notify_new_mail]:ValidationToken request failed!.")
         logging.warning(f"[notify_new_mail]:Request Method: {req.method}")
 
     initialize_logger()
 
     #Validate ClientState
+    logging.info("[notify_new_mail]:Validating ClientState...")
     try:
         body = req.get_json()
         for note in body.get("value",[]):
@@ -58,6 +59,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("[notify_new_mail]:ClientState verified")
 
     # Validate Subscription
+    logging.info("[notify_new_mail]:Validating Subscription Webhook...")
     database_client = get_db_client()
     cosmos_container = database_client.get_container_client("Subscriptions")
     try:
