@@ -43,11 +43,20 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     initialize_logger()
 
     #Validate ClientState
+    ## CHECK WITH SUB EXPIRY TIMESTAMP IN JWT FOR CORRECT SECRET BEFORE PULLING SECRET ---> NOT IN CORRECT SUBSCRIPTION...DETERMINE FALLBACK
+    ## IF TIMESTAMP MATCHES SUB ID SUBSCRIPTION EXPIRY DATE
+        ## PULL SECRET FROM KEY VAULT
+        ## VALIDATE JWT CLIENTSTATE
+            ## VALIDATED? CONTINUE
+            ## ERROR? REJECT ---> DETERMINE FALLBACK OR LOGS
+    ## ELSE:
+        ## TODO -> NOT IN CORRECT SUBSCRIPTION...DETERMINE FALLBACK.
+
     logging.info("[notify_new_mail]:Validating ClientState...")
     try:
-        body = req.get_json()
+        body = await req.get_json()
         for note in body.get("value",[]):
-            if note.get("ClientState") != os.environ["CLIENT_STATE"]:
+            if note.get("ClientState") != os.environ["CLIENT_STATE"]: ## ---> Must implement other logic to persist this variable, JWT or HMAC
                 logging.error("Returning 401, ClientState not authorized or missing.")
                 return func.HttpResponse(status_code=401)
     except Exception as e:
@@ -57,26 +66,27 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
 
     # Validate Subscription
     logging.info("[notify_new_mail]:Validating Subscription Webhook...")
-    database_client = get_db_client()
-    cosmos_container = database_client.get_container_client("Subscriptions")
     try:
-        doc = cosmos_container.read_item(item="subscription", partition_key="subscription")
-        sub_id = doc["subId"]
-        next_renewal = datetime.fromisoformat(doc["nextFailSafe"])
-        next_renewal.replace(tzinfo=timezone.utc)
+        body = await req.get_json()
+        value_list = body.get("value")
+        if not isinstance(value_list,list) or not value_list:
+            raise ValueError("Missing or empty 'value' array.")
 
-        if datetime.now(timezone.utc) >= next_renewal:
-            logging.warning("Running subscription renewal failsafe...")
-            #failsafe_counter.add(1)
-            next_expiry = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat() + "Z"
-            graph_client = await get_graph_client()
-            graph_client.subscriptions.by_subscription_id(sub_id).patch(body={"expirationDateTime": next_expiry})
+        first = value_list[0]
+        sub_id = first.get("subscriptionId")
+        sub_expiry = first.get("subscriptionExpirationDateTime")
 
-            doc["nextFailSafe"] = (datetime.now(timezone.utc) + timedelta(days=3) - timedelta(hours=12)).isoformat()
-            cosmos_container.replace_item(items="subscription", body=doc)
-    except CosmosResourceNotFoundError:
-        logging.warning("Error running failsafe: Updating subscription...")
-        await renew_subscription(func.TimerRequest)
+        current_time = datetime.now(timezone.utc)
+        sub_renewal = datetime.fromisoformat(sub_expiry) - timedelta(hours=12)
+
+        if current_time >= sub_renewal:
+            logging.warning("[notify_new_mail]:Failsafe:Updating subscription...")
+            await renew_subscription(sub_id)
+    except Exception as e:
+        logging.error(f"[notify_new_mail]:Error retrieving subscription id and expiry date: {e}")
+        logging.error("[notify_new_mail]:Triggering subscription renewal...")
+        await renew_subscription(sub_id)
+
     # Send request JSON to upload_blob
     ## TODO
 
@@ -87,16 +97,26 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
 @app.function_name(name="SubscriptionRenewalTimer")
 @app.timer_trigger(schedule="0 */2 * * * *",
                    arg_name="timer")
-async def renew_subscription(timer: func.TimerRequest) -> None:
+async def renew_subscription(timer: func.TimerRequest, sub_id: str) -> None:
     initialize_logger()
     if timer.past_due:
         logging.warning("Renewal Timer is past due! Check failsafe.")
     utc_timestamp = datetime.now().replace(tzinfo=timezone.utc).isoformat()
 
-    client_state = None
-    if os.environ["ENV"] == "dev":
-        client_state = os.environ["CLIENT_STATE"]
-    client_state = secrets.token_urlsafe(32)
+    ## CALL DB FOR LATEST SUBSCRIPTION (DB SHOULD ONLY STORE THE CURRENT ACTIVE DB) --> MAYBE ARCHIVE THE OLD IF NEW CREATED
+    ## CHECK JWT --> RETURN 401 IF MISMATCH
+    ## CHECK SUB AGAINST EXPIRY --> IF EXPIRED ? CREATE/ARCHIVE OLD : RETURN
+    ## EXPIRED -> RUN ASYNC
+        #CREATE NEW SECRET
+        #UPDATE SECRET TO KEY 
+        #CREATE NEW JWT WITH SIGNED EXPIRY TIMESTAMP
+        #CREATE NEW SUBSCRIPTION WITH JWT
+        #ARCHIVE OLD SUBSCRIPTION VIA SUB ID
+    ## ELSE -> RETURN
+
+    if not os.environ["ENV"] == "dev":
+        os.environ["CLIENT_STATE"] = secrets.token_urlsafe(32) ## ---> Must implement other logic to persist this variable, JWT or HMAC
+
     next_expiry = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
     next_failsafe = (datetime.now(timezone.utc) + timedelta(minutes=3)).isoformat()
     logging.info(f"[renew_subscription]:New expiration date -> {next_expiry}")
@@ -107,7 +127,7 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
         notification_url= "https://invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
         resource= f"users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages",
         expiration_date_time= next_expiry,
-        client_state= client_state,
+        client_state= f"{os.environ["CLIENT_STATE"]}", ## ---> Must implement other logic to persist this variable, JWT or HMAC
         latest_supported_tls_version= "v1_2"
     )
 
@@ -115,7 +135,7 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
     graph_client = await get_graph_client()
     logging.info("[renew_subscription]:Submitting new subscription...")
     try:
-        result = await graph_client.subscriptions.post(request_body) #-> Bad Request 400 on the subscription post...Check JSON body.
+        result = await graph_client.subscriptions.post(request_body)
         logging.info(f"[renew_subscription]: {result}")
     except Exception as e:
         logging.error(f"Failed to create or update webhook renewal: {e}")
