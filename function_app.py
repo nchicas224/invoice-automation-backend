@@ -6,6 +6,7 @@ import secrets
 import azure.functions as func
 import azure.durable_functions as df
 import asyncio
+import jwt
 from datetime import datetime, timedelta, timezone
 from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry import trace, metrics
@@ -13,11 +14,12 @@ from azure.identity import ClientSecretCredential
 from azure.identity.aio import DefaultAzureCredential
 from msgraph import GraphServiceClient
 from msgraph.generated.models.subscription import Subscription
-from azure.cosmos import CosmosClient
+from azure.cosmos import CosmosClient, ContainerProxy, DatabaseProxy, CosmosDict
 from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosResourceNotFoundError
 from openai import AzureOpenAI
 from shared.graph_client import get_graph_client
 from shared.database_client import get_db_client
+from shared.keyvault_client import get_keyvault_client
 from shared.azure_monitor import failsafe_counter, tracer, meter, initialize_logger
 
 app = func.FunctionApp()
@@ -36,38 +38,74 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
         if req.params["validationToken"]:
              logging.warning("[notify_new_mail]:Validation token found...")
              return func.HttpResponse(req.params["validationToken"], status_code=200)
-        else:
-            logging.warning("[notify_new_mail]:Token validation failed.")
-            return func.HttpResponse(status_code=404)
+    else:
+        logging.warning("[notify_new_mail]:Token validation failed.")
+        return func.HttpResponse(status_code=404)
 
     initialize_logger()
 
-    #Validate ClientState
-    ## CHECK WITH SUB EXPIRY TIMESTAMP IN JWT FOR CORRECT SECRET BEFORE PULLING SECRET ---> NOT IN CORRECT SUBSCRIPTION...DETERMINE FALLBACK
-    ## IF TIMESTAMP MATCHES SUB ID SUBSCRIPTION EXPIRY DATE
-        ## PULL SECRET FROM KEY VAULT
-        ## VALIDATE JWT CLIENTSTATE
-            ## VALIDATED? CONTINUE
-            ## ERROR? REJECT ---> DETERMINE FALLBACK OR LOGS
-    ## ELSE:
-        ## TODO -> NOT IN CORRECT SUBSCRIPTION...DETERMINE FALLBACK.
+    # Validate ClientState
+    body = await validate_clientState(req) ## IMPLEMENT TRY LOGIC
 
+    # Validate Subscription
+    await validate_subscription(body) ## IMPLEMENT TRY LOGIC
+
+    # Send request JSON to upload_blob
+    ## TODO
+
+    # Return Accepted -> Processing status to Graph API
+    return func.HttpResponse(status_code=202)
+
+#Subscription Timer Trigger Function
+@app.function_name(name="SubscriptionRenewalTimer")
+@app.timer_trigger(schedule="0 */2 * * * *",
+                   arg_name="timer")
+async def renew_subscription(timer: func.TimerRequest) -> None:
+    initialize_logger()
+    if timer.past_due:
+        logging.warning("Renewal Timer is past due! Check failsafe.")
+    utc_timestamp = datetime.now().replace(tzinfo=timezone.utc).isoformat()
+
+    creation_results = await create_subscription()
+    result: Subscription = creation_results["result"]
+
+    if result and result.id:
+        await update_db_subscription(creation_results)
+    else:
+        logging.warning("Failed to upsert Subscription: 'result' or 'application.id' was not found.")
+    logging.info(f"Renewal timer trigger successfully ran at: {utc_timestamp}")    
+
+async def validate_clientState(req: func.HttpRequest) -> json: 
     logging.info("[notify_new_mail]:Validating ClientState...")
     try:
         body = await req.get_json()
         for note in body.get("value",[]):
-            if note.get("ClientState") != os.environ["CLIENT_STATE"]: ## ---> Must implement other logic to persist this variable, JWT or HMAC
-                logging.error("Returning 401, ClientState not authorized or missing.")
-                return func.HttpResponse(status_code=401)
+            if note.get("ClientState"):
+                clientState = note["ClientState"]
+                keyvault_client = await get_keyvault_client()
+                secret = await keyvault_client.get_secret("clientState_secret")
+                sub_expiry_raw = note["subscriptionExpirationDateTime"]
+                sub_expiry = int(datetime.fromisoformat(sub_expiry_raw).timestamp())
+
+                payload = jwt.decode(
+                    clientState,
+                    secret,
+                    algorithm = "HS256",
+                    options = {"require_exp": True}
+                )
+                jwt_expiry = payload["expiry"]
+                if not jwt_expiry == sub_expiry:
+                    logging.error("Returning 401, ClientState not authorized or missing.")
+                    return func.HttpResponse(status_code=401)
     except Exception as e:
         logging.error(f"JSON body parse or ClientState check failed {e}")
         return func.HttpResponse(status_code=400)
     logging.info("[notify_new_mail]:ClientState verified")
+    return body
 
-    # Validate Subscription
+async def validate_subscription(body: json):
     logging.info("[notify_new_mail]:Validating Subscription Webhook...")
     try:
-        body = await req.get_json()
         value_list = body.get("value")
         if not isinstance(value_list,list) or not value_list:
             raise ValueError("Missing or empty 'value' array.")
@@ -87,47 +125,32 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
         logging.error("[notify_new_mail]:Triggering subscription renewal...")
         await renew_subscription(sub_id)
 
-    # Send request JSON to upload_blob
-    ## TODO
-
-    # Return Accepted -> Processing status to Graph API
-    return func.HttpResponse(status_code=202)
-
-#Subscription Timer Trigger Function
-@app.function_name(name="SubscriptionRenewalTimer")
-@app.timer_trigger(schedule="0 */2 * * * *",
-                   arg_name="timer")
-async def renew_subscription(timer: func.TimerRequest, sub_id: str) -> None:
-    initialize_logger()
-    if timer.past_due:
-        logging.warning("Renewal Timer is past due! Check failsafe.")
-    utc_timestamp = datetime.now().replace(tzinfo=timezone.utc).isoformat()
-
+async def create_subscription(sub_id: str) -> dict:
     ## CALL DB FOR LATEST SUBSCRIPTION (DB SHOULD ONLY STORE THE CURRENT ACTIVE DB) --> MAYBE ARCHIVE THE OLD IF NEW CREATED
-    ## CHECK JWT --> RETURN 401 IF MISMATCH
-    ## CHECK SUB AGAINST EXPIRY --> IF EXPIRED ? CREATE/ARCHIVE OLD : RETURN
-    ## EXPIRED -> RUN ASYNC
-        #CREATE NEW SECRET
-        #UPDATE SECRET TO KEY 
-        #CREATE NEW JWT WITH SIGNED EXPIRY TIMESTAMP
-        #CREATE NEW SUBSCRIPTION WITH JWT
-        #ARCHIVE OLD SUBSCRIPTION VIA SUB ID
-    ## ELSE -> RETURN
+    db_client = get_db_client()
+    cosmos_container = db_client.get_container_client("Subscriptions")
+    if sub_id:
+        latest_sub = cosmos_container.read_item(item=sub_id, partition_key="subscription")
+    else:
+        latest_sub = cosmos_container.read_all_items(max_item_count=1) ## QUESTIONABLE?
 
-    if not os.environ["ENV"] == "dev":
-        os.environ["CLIENT_STATE"] = secrets.token_urlsafe(32) ## ---> Must implement other logic to persist this variable, JWT or HMAC
-
+    logging.warning("[renew_subscription]:Creating new subscription...")
+    keyvault_client = await get_keyvault_client()
+    secret = secrets.token_urlsafe(32)
+    await keyvault_client.set_secret("clientState_secret", secret)
     next_expiry = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
-    next_failsafe = (datetime.now(timezone.utc) + timedelta(minutes=3)).isoformat()
-    logging.info(f"[renew_subscription]:New expiration date -> {next_expiry}")
 
-    
+    jwt_expiry = int(datetime.fromisoformat(next_expiry).timestamp())
+    logging.info(f"[renew_subscription]:New expiration date -> {next_expiry}")
+    init_time = datetime.now(timezone.utc)
+    jwt_token = jwt.encode({f"expiry": {jwt_expiry}}, secret, algorithm="HS256")
+
     request_body = Subscription(
         change_type = "created",
         notification_url= "https://invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
         resource= f"users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages",
         expiration_date_time= next_expiry,
-        client_state= f"{os.environ["CLIENT_STATE"]}", ## ---> Must implement other logic to persist this variable, JWT or HMAC
+        client_state= jwt_token,
         latest_supported_tls_version= "v1_2"
     )
 
@@ -139,24 +162,68 @@ async def renew_subscription(timer: func.TimerRequest, sub_id: str) -> None:
         logging.info(f"[renew_subscription]: {result}")
     except Exception as e:
         logging.error(f"Failed to create or update webhook renewal: {e}")
-    
-    if result and result.id:
-        try:
-            cosmos_container = get_db_client().get_container_client("Subscriptions")
-            cosmos_container.upsert_item({
-                "id": result.id,
-                "subscription": "subscription",
-                "notifcationUrl": "invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
-                "resource": f"/users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages",
-                "expirationDateTime": next_expiry,
-                "nextFailSafe": next_failsafe
-            })
-            logging.info(f"[renew_subscription]:Successfully uploaded Subscription record to: {cosmos_container.id}")
-        except CosmosHttpResponseError as e:
-            logging.warning(f"Failed to upload Subscription to {cosmos_container.id}: {e.message}")
-    else:
-        logging.warning("Failed to upsert Subscription: 'result' or 'application.id' was not found.")
-    logging.info(f"Renewal timer trigger successfully ran at: {utc_timestamp}")    
+
+    try:
+        graph_client.subscriptions.by_subscription_id(latest_sub["id"]).delete()
+    except Exception as e:
+        logging.warning(f"[renew_subscription]:Failed to delete expired subscription")
+        return
+    return {
+        "result": result,
+        "db_client": db_client,
+        "cosmos_container": cosmos_container,
+        "latest_sub": latest_sub,
+        "init_time": init_time,
+        "next_expiry": next_expiry
+        }
+
+async def update_db_subscription(creation_results: dict):
+    db_client: DatabaseProxy = creation_results["db_client"]
+    cosmos_container: ContainerProxy = creation_results["cosmos_container"]
+    result: Subscription = creation_results["result"]
+    latest_sub: CosmosDict = creation_results["latest_sub"]
+    init_time: datetime = creation_results["init_time"]
+    next_expiry: str = creation_results["next_expiry"]
+    try:
+        cosmos_container.upsert_item({
+            "id": result.id,
+            "subscription": "subscription",
+            "notifcationUrl": "invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
+            "resource": f"/users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages",
+            "expirationDateTime": next_expiry,
+            "init_at": init_time
+        })
+        logging.info(f"[renew_subscription]:Successfully uploaded Subscription record to: {cosmos_container.id}")
+    except CosmosHttpResponseError as e:
+        logging.warning(f"Failed to upload Subscription to {cosmos_container.id}: {e.message}")
+
+    ## MOVE OLD TO ARCHIVE IN DB
+    try:
+        old_sub_id = latest_sub["id"]
+        old_sub_expiry = latest_sub["expirationDateTime"]
+        old_init = latest_sub["init_at"]
+        logging.warning(f"[renew_subscription]: Succesfully obtained subscription to archive: {e}")
+    except Exception as e:
+        logging.warning(f"[renew_subscription]: Failed to obtain subscription to archive: {e}")
+        return ## --> CREATE FAILSAFE
+    try:
+        ## ADD OLD SUB TO ARCHIVE
+        cosmos_container_archive = db_client.get_container_client("Archived Subscriptions")
+        cosmos_container_archive.upsert_item({
+            "id": old_sub_id,
+            "archive_sub_id": "archived",
+            "notifcationUrl": "invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
+            "resource": f"/users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages",
+            "expirationDateTime": old_sub_expiry,
+            "init_at": old_init
+        })
+        logging.info(f"[renew_subscription]:Successfully added Archive Subscription record to: {cosmos_container_archive.id}")
+
+        ## REMOVE OLD SUB FROM ACTIVE
+        cosmos_container.delete_item(item=old_sub_id, partition_key="subscription")
+        logging.info(f"[renew_subscription]:Successfully removed Subscription record from: {cosmos_container.id}")
+    except CosmosHttpResponseError as e:
+        logging.warning(f"Failed to update Subscription from {cosmos_container.id}: {e.message}")
 
 # @app.queue_trigger(arg_name="azqueue", queue_name="invoices",
 #                                connection="8043d5_STORAGE") 
