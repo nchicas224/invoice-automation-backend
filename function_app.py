@@ -119,15 +119,17 @@ async def validate_subscription(body: json):
 
         if current_time >= sub_renewal:
             logging.warning("[notify_new_mail]:Failsafe:Updating subscription...")
-            await renew_subscription(sub_id)
+            await create_subscription(sub_id=sub_id)
     except Exception as e:
         logging.error(f"[notify_new_mail]:Error retrieving subscription id and expiry date: {e}")
         logging.error("[notify_new_mail]:Triggering subscription renewal...")
-        await renew_subscription(sub_id)
+        await create_subscription(sub_id=sub_id)
 
-async def create_subscription(sub_id: str) -> dict:
+async def create_subscription(**kwargs) -> dict:
     ## CALL DB FOR LATEST SUBSCRIPTION (DB SHOULD ONLY STORE THE CURRENT ACTIVE DB) --> MAYBE ARCHIVE THE OLD IF NEW CREATED
     db_client = get_db_client()
+    if kwargs:
+        sub_id = kwargs[sub_id]
     cosmos_container = db_client.get_container_client("Subscriptions")
     if sub_id:
         latest_sub = cosmos_container.read_item(item=sub_id, partition_key="subscription")
