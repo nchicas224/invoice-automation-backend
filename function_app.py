@@ -128,13 +128,25 @@ async def validate_subscription(body: json):
 async def create_subscription(**kwargs) -> dict:
     ## CALL DB FOR LATEST SUBSCRIPTION (DB SHOULD ONLY STORE THE CURRENT ACTIVE DB) --> MAYBE ARCHIVE THE OLD IF NEW CREATED
     db_client = get_db_client()
-    if kwargs:
-        sub_id = kwargs[sub_id]
+    sub_id = kwargs.get("sub_id")
     cosmos_container = db_client.get_container_client("Subscriptions")
     if sub_id:
         latest_sub = cosmos_container.read_item(item=sub_id, partition_key="subscription")
     else:
-        latest_sub = cosmos_container.read_all_items(max_item_count=1) ## QUESTIONABLE?
+        query = """
+            SELECT TOP 1 *
+            FROM c
+            WHERE c.partitionKey = @pk
+            ORDER BY c.init_time DESC
+        """
+        params = [dict(name="@pk", value="subscription")]
+
+        iterator = cosmos_container.query_items(
+            query=query,
+            parameters=params,
+            enable_cross_partition_query=False
+        )
+        latest_sub = next(iterator)
 
     logging.warning("[renew_subscription]:Creating new subscription...")
     keyvault_client = await get_keyvault_client()
