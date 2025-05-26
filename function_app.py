@@ -83,7 +83,7 @@ async def validate_clientState(req: func.HttpRequest) -> json:
             if note.get("ClientState"):
                 clientState = note["ClientState"]
                 keyvault_client = await get_keyvault_client()
-                secret = await keyvault_client.get_secret("clientState_secret")
+                secret = await keyvault_client.get_secret("client-state-secret")
                 sub_expiry_raw = note["subscriptionExpirationDateTime"]
                 sub_expiry = int(datetime.fromisoformat(sub_expiry_raw).timestamp())
 
@@ -152,7 +152,8 @@ async def create_subscription(**kwargs) -> dict:
     logging.warning("[renew_subscription]:Creating new subscription...")
     keyvault_client = await get_keyvault_client()
     secret = secrets.token_urlsafe(32)
-    await keyvault_client.set_secret("clientState_secret", secret)
+    logging.info("Getting client secret...")
+    await keyvault_client.set_secret("clientt-state-secret", secret)
     next_expiry = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
 
     jwt_expiry = int(datetime.fromisoformat(next_expiry).timestamp())
