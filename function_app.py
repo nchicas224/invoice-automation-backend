@@ -33,16 +33,19 @@ app = func.FunctionApp()
 #@app.durable_client_input(client_name="client")
 async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     # Graph API handshake
-    if req.method == "POST" and req.params.get("validationToken"):
+    if req.params.get("validationToken"):
         logging.warning("[notify_new_mail]:Checking Validation Token...")
         if req.params["validationToken"]:
              logging.warning("[notify_new_mail]:Validation token found...")
-             return func.HttpResponse(req.params["validationToken"], status_code=200)
-    else:
-        logging.warning("[notify_new_mail]:Token validation failed.")
-        logging.warning(f"[notify_new_mail]:METHOD={req.method}, from User-Agent={req.headers.get("User-Agent")}")
-        return func.HttpResponse(status_code=404)
+             return func.HttpResponse(req.params["validationToken"], status_code=200, mimetype="text/plain")
+        else:
+            logging.warning("[notify_new_mail]:Token validation failed.")
+            logging.warning(f"[notify_new_mail]:METHOD={req.method}, from User-Agent={req.headers.get("User-Agent")}")
+            return func.HttpResponse(status_code=404)
 
+    if req.method != "POST":
+        return func.HttpResponse(status_code=405)
+    
     initialize_logger()
 
     # Validate ClientState
@@ -82,6 +85,8 @@ async def validate_clientState(req: func.HttpRequest) -> json:
     logging.info("[notify_new_mail]:Validating ClientState...")
     try:
         body = await req.get_json()
+        if not isinstance(body.get("value", list)):
+            return func.HttpResponse(status_code=400)
         for note in body.get("value",[]):
             if note.get("ClientState"):
                 clientState = note["ClientState"]
