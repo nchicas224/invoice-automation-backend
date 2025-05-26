@@ -139,7 +139,7 @@ async def create_subscription(**kwargs) -> dict:
             SELECT TOP 1 *
             FROM c
             WHERE c.partitionKey = @pk
-            ORDER BY c.init_time DESC
+            ORDER BY c.init_at DESC
         """
         params = [dict(name="@pk", value="subscription")]
 
