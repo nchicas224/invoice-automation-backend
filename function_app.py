@@ -147,7 +147,7 @@ async def create_subscription(**kwargs) -> dict:
             enable_cross_partition_query=False,
             partition_key="subscription"
         )
-        latest_sub = next(iterator)
+        latest_sub = next(iterator, None)
 
     logging.warning("[renew_subscription]:Creating new subscription...")
     keyvault_client = await get_keyvault_client()
@@ -178,11 +178,12 @@ async def create_subscription(**kwargs) -> dict:
     except Exception as e:
         logging.error(f"Failed to create or update webhook renewal: {e}")
 
-    try:
-        graph_client.subscriptions.by_subscription_id(latest_sub["id"]).delete()
-    except Exception as e:
-        logging.warning(f"[renew_subscription]:Failed to delete expired subscription")
-        return
+    if latest_sub:
+        try:
+            graph_client.subscriptions.by_subscription_id(latest_sub["id"]).delete()
+        except Exception as e:
+            logging.warning(f"[renew_subscription]:Failed to delete expired subscription")
+            return
     return {
         "result": result,
         "db_client": db_client,
