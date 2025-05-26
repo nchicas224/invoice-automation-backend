@@ -185,6 +185,7 @@ async def create_subscription(**kwargs) -> dict:
     if latest_sub:
         try:
             await graph_client.subscriptions.by_subscription_id(latest_sub["id"]).delete()
+            logging.info("Expired subscription deleted from graph.")
         except Exception as e:
             logging.warning(f"[renew_subscription]:Failed to delete expired subscription")
             return
