@@ -222,6 +222,7 @@ async def update_db_subscription(creation_results: dict):
         old_sub_expiry = latest_sub["expirationDateTime"]
         old_init = latest_sub["init_at"]
         logging.warning(f"[renew_subscription]: Succesfully obtained subscription to archive: {e}")
+        logging.warning(f"latest_sub: {latest_sub}, old_sub_id: {old_sub_id}, old_sub_expiry: {old_sub_expiry}, old_init: {old_init}")
     except Exception as e:
         logging.warning(f"[renew_subscription]: Failed to obtain subscription to archive: {e}")
         return ## --> CREATE FAILSAFE
