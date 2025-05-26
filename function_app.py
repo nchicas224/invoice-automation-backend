@@ -225,6 +225,7 @@ async def update_db_subscription(creation_results: dict):
         logging.warning(f"latest_sub: {latest_sub}, old_sub_id: {old_sub_id}, old_sub_expiry: {old_sub_expiry}, old_init: {old_init}")
     except Exception as e:
         logging.warning(f"[renew_subscription]: Failed to obtain subscription to archive: {e}")
+        logging.warning(f"latest_sub: {latest_sub}, old_sub_id: {old_sub_id}, old_sub_expiry: {old_sub_expiry}, old_init: {old_init}")
         return ## --> CREATE FAILSAFE
     try:
         logging.info("Upserting old sub into archive...")
