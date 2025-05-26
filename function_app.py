@@ -187,14 +187,6 @@ async def create_subscription(**kwargs) -> dict:
         logging.info(f"[renew_subscription]: {result}")
     except Exception as e:
         logging.error(f"Failed to create or update webhook renewal: {e}")
-
-    if latest_sub:
-        try:
-            await graph_client.subscriptions.by_subscription_id(latest_sub["id"]).delete()
-            logging.info("Expired subscription deleted from graph.")
-        except Exception as e:
-            logging.warning(f"[renew_subscription]:Failed to delete expired subscription")
-            return
     logging.info("Returning dictionary results...")
     return {
         "result_id": result.id,
@@ -264,6 +256,16 @@ async def update_db_subscription(creation_results: dict):
         logging.info(f"[renew_subscription]:Successfully removed Subscription record from: {cosmos_container.id}")
     except CosmosHttpResponseError as e:
         logging.warning(f"Failed to update Subscription from {cosmos_container.id}: {e.message}")
+
+    if latest_sub:
+        try:
+            graph_client = await get_graph_client()
+            await graph_client.subscriptions.by_subscription_id(latest_sub["id"]).delete()
+            logging.info("Expired subscription deleted from graph.")
+        except Exception as e:
+            logging.warning(f"[renew_subscription]:Failed to delete expired subscription")
+            return
+    
 
 # @app.queue_trigger(arg_name="azqueue", queue_name="invoices",
 #                                connection="8043d5_STORAGE") 
