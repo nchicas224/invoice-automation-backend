@@ -132,7 +132,7 @@ async def create_subscription(**kwargs) -> dict:
     cosmos_container = db_client.get_container_client("Subscriptions")
     if sub_id:
         latest_sub = cosmos_container.read_item(item=sub_id, partition_key="subscription")
-    else:
+    else: ## QUERY MIGHT BE OFF
         query = """
             SELECT TOP 1 *
             FROM c
@@ -144,7 +144,8 @@ async def create_subscription(**kwargs) -> dict:
         iterator = cosmos_container.query_items(
             query=query,
             parameters=params,
-            enable_cross_partition_query=True
+            enable_cross_partition_query=False,
+            partition_key="subscription"
         )
         latest_sub = next(iterator)
 
