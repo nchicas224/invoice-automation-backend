@@ -68,9 +68,9 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
 
     creation_results = await create_subscription()
     logging.info("Results obtained!")
-    result = creation_results["result"]
+    result_id = creation_results["result_id"]
     logging.info("Subscription Result assigned!")
-    if result and result["id"]:
+    if result_id:
         logging.info("Running subscription database update function...")
         await update_db_subscription(creation_results)
     else:
@@ -134,7 +134,7 @@ async def create_subscription(**kwargs) -> dict:
     cosmos_container = db_client.get_container_client("Subscriptions")
     if sub_id:
         latest_sub = cosmos_container.read_item(item=sub_id, partition_key="subscription")
-    else: ## QUERY MIGHT BE OFF
+    else:
         query = """
             SELECT TOP 1 *
             FROM c
@@ -189,7 +189,7 @@ async def create_subscription(**kwargs) -> dict:
             return
     logging.info("Returning dictionary results...")
     return {
-        "result": result.serialize(),
+        "result_id": result.id,
         "latest_sub": latest_sub,
         "init_time": init_time,
         "next_expiry": next_expiry
@@ -198,13 +198,13 @@ async def create_subscription(**kwargs) -> dict:
 async def update_db_subscription(creation_results: dict):
     db_client = get_db_client()
     cosmos_container = db_client.get_container_client("Subscriptions")
-    result = creation_results["result"]
+    result_id = creation_results["result_id"]
     latest_sub: CosmosDict = creation_results["latest_sub"]
     init_time = creation_results["init_time"]
     next_expiry: str = creation_results["next_expiry"]
     try:
         await cosmos_container.upsert_item({
-            "id": result["id"],
+            "id": result_id,
             "subscription": "subscription",
             "notifcationUrl": "invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
             "resource": f"/users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages",
