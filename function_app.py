@@ -85,7 +85,7 @@ async def validate_clientState(req: func.HttpRequest) -> json:
     logging.info("[notify_new_mail]:Validating ClientState...")
     try:
         body = req.get_json()
-        if not isinstance(body.get("value", list)):
+        if not isinstance(body.get("value"), list):
             return func.HttpResponse(status_code=400)
         for note in body.get("value",[]):
             if note.get("ClientState"):
