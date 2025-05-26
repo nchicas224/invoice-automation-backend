@@ -67,9 +67,11 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
     utc_timestamp = datetime.now().replace(tzinfo=timezone.utc).isoformat()
 
     creation_results = await create_subscription()
+    logging.info("Results obtained!")
     result: Subscription = creation_results["result"]
-
+    logging.info("Subscription Result assigned!")
     if result and result.id:
+        logging.info("Running subscription database update function...")
         await update_db_subscription(creation_results)
     else:
         logging.warning("Failed to upsert Subscription: 'result' or 'application.id' was not found.")
@@ -185,6 +187,7 @@ async def create_subscription(**kwargs) -> dict:
         except Exception as e:
             logging.warning(f"[renew_subscription]:Failed to delete expired subscription")
             return
+    logging.info("Returning dictionary results...")
     return {
         "result": result,
         "db_client": db_client,
