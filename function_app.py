@@ -38,7 +38,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
         if req.params["validationToken"]:
              logging.warning("[notify_new_mail]:Validation token found...")
              return func.HttpResponse(req.params["validationToken"], status_code=200)
-    else:
+    elif req.method == "POST":
         logging.warning("[notify_new_mail]:Token validation failed.")
         return func.HttpResponse(status_code=404)
 
