@@ -153,13 +153,13 @@ async def create_subscription(**kwargs) -> dict:
     keyvault_client = await get_keyvault_client()
     secret = secrets.token_urlsafe(32)
     logging.info("Getting client secret...")
-    await keyvault_client.set_secret("clientt-state-secret", secret)
+    await keyvault_client.set_secret("client-state-secret", secret)
     next_expiry = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
 
     jwt_expiry = int(datetime.fromisoformat(next_expiry).timestamp())
     logging.info(f"[renew_subscription]:New expiration date -> {next_expiry}")
     init_time = datetime.now(timezone.utc)
-    jwt_token = jwt.encode({f"expiry": {jwt_expiry}}, secret, algorithm="HS256")
+    jwt_token = jwt.encode({"expiry": jwt_expiry}, secret, algorithm="HS256")
 
     request_body = Subscription(
         change_type = "created",
