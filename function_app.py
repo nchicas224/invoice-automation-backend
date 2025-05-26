@@ -218,11 +218,19 @@ async def update_db_subscription(creation_results: dict):
     ## MOVE OLD TO ARCHIVE IN DB
     try:
         logging.info("Retrieving old sub information...")
-        old_sub_id = latest_sub["id"]
-        old_sub_expiry = latest_sub["expirationDateTime"]
-        old_init = latest_sub["init_at"]
+        if latest_sub:
+            logging.info(f"latest_sub: {latest_sub}")
+            if latest_sub["id"]:
+                logging.info(f"old_sub_id: {latest_sub["id"]}")
+                old_sub_id = latest_sub["id"]
+                if latest_sub["expirationDateTime"]:
+                    logging.info(f"old_sub_expiry: {latest_sub["expirationDateTime"]}")
+                    old_sub_expiry = latest_sub["expirationDateTime"]
+                    if latest_sub["init_at"]:
+                        logging.info(f"old_init: {latest_sub["init_at"]}")
+                        old_init = latest_sub["init_at"]
         logging.warning(f"[renew_subscription]: Succesfully obtained subscription to archive: {e}")
-        logging.warning(f"latest_sub: {latest_sub}, old_sub_id: {old_sub_id}, old_sub_expiry: {old_sub_expiry}, old_init: {old_init}")
+
     except Exception as e:
         logging.warning(f"[renew_subscription]: Failed to obtain subscription to archive: {e}")
         logging.warning(f"latest_sub: {latest_sub}, old_sub_id: {old_sub_id}, old_sub_expiry: {old_sub_expiry}, old_init: {old_init}")
