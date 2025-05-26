@@ -160,7 +160,7 @@ async def create_subscription(**kwargs) -> dict:
 
     jwt_expiry = int(datetime.fromisoformat(next_expiry).timestamp())
     logging.info(f"[renew_subscription]:New expiration date -> {next_expiry}")
-    init_time = datetime.now(timezone.utc)
+    init_time = datetime.now(timezone.utc).isoformat()
     jwt_token = jwt.encode({"expiry": jwt_expiry}, secret, algorithm="HS256")
 
     request_body = Subscription(
@@ -189,24 +189,22 @@ async def create_subscription(**kwargs) -> dict:
             return
     logging.info("Returning dictionary results...")
     return {
-        "result": result,
-        "db_client": db_client,
-        "cosmos_container": cosmos_container,
+        "result": result.serialize(),
         "latest_sub": latest_sub,
         "init_time": init_time,
         "next_expiry": next_expiry
         }
 
 async def update_db_subscription(creation_results: dict):
-    db_client: DatabaseProxy = creation_results["db_client"]
-    cosmos_container: ContainerProxy = creation_results["cosmos_container"]
-    result: Subscription = creation_results["result"]
+    db_client = get_db_client()
+    cosmos_container = db_client.get_container_client("Subscriptions")
+    result = creation_results["result"]
     latest_sub: CosmosDict = creation_results["latest_sub"]
-    init_time: datetime = creation_results["init_time"]
+    init_time = creation_results["init_time"]
     next_expiry: str = creation_results["next_expiry"]
     try:
-        cosmos_container.upsert_item({
-            "id": result.id,
+        await cosmos_container.upsert_item({
+            "id": result["id"],
             "subscription": "subscription",
             "notifcationUrl": "invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
             "resource": f"/users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages",
@@ -229,7 +227,7 @@ async def update_db_subscription(creation_results: dict):
     try:
         ## ADD OLD SUB TO ARCHIVE
         cosmos_container_archive = db_client.get_container_client("Archived Subscriptions")
-        cosmos_container_archive.upsert_item({
+        await cosmos_container_archive.upsert_item({
             "id": old_sub_id,
             "archive_sub_id": "archived",
             "notifcationUrl": "invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
@@ -240,7 +238,7 @@ async def update_db_subscription(creation_results: dict):
         logging.info(f"[renew_subscription]:Successfully added Archive Subscription record to: {cosmos_container_archive.id}")
 
         ## REMOVE OLD SUB FROM ACTIVE
-        cosmos_container.delete_item(item=old_sub_id, partition_key="subscription")
+        await cosmos_container.delete_item(item=old_sub_id, partition_key="subscription")
         logging.info(f"[renew_subscription]:Successfully removed Subscription record from: {cosmos_container.id}")
     except CosmosHttpResponseError as e:
         logging.warning(f"Failed to update Subscription from {cosmos_container.id}: {e.message}")
