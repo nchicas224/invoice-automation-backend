@@ -253,7 +253,7 @@ async def update_db_subscription(creation_results: dict):
 
         ## REMOVE OLD SUB FROM ACTIVE
         logging.info("Removing old sub from active...")
-        await cosmos_container.delete_item(item=old_sub_id, partition_key="subscription")
+        cosmos_container.delete_item(item=old_sub_id, partition_key="subscription")
         logging.info(f"[renew_subscription]:Successfully removed Subscription record from: {cosmos_container.id}")
     except CosmosHttpResponseError as e:
         logging.warning(f"Failed to update Subscription from {cosmos_container.id}: {e.message}")
