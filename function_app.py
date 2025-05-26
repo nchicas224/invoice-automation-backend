@@ -150,6 +150,7 @@ async def create_subscription(**kwargs) -> dict:
             partition_key="subscription"
         )
         latest_sub = next(iterator, None)
+        logging.info(f"Latest sub from subscription creation....{latest_sub}")
 
     logging.warning("[renew_subscription]:Creating new subscription...")
     keyvault_client = await get_keyvault_client()
@@ -200,6 +201,7 @@ async def update_db_subscription(creation_results: dict):
     cosmos_container = db_client.get_container_client("Subscriptions")
     result_id = creation_results["result_id"]
     latest_sub: CosmosDict = creation_results["latest_sub"]
+    logging.info(f"Latest sub from update sub function: {latest_sub}")
     init_time = creation_results["init_time"]
     next_expiry: str = creation_results["next_expiry"]
     try:
@@ -218,7 +220,7 @@ async def update_db_subscription(creation_results: dict):
     ## MOVE OLD TO ARCHIVE IN DB
     try:
         logging.info("Retrieving old sub information...")
-        if latest_sub:
+        if latest_sub: ## LATEST SUB IS EMPTY>>>>>>>>>>>>>
             logging.info(f"latest_sub: {latest_sub}")
             if latest_sub["id"]:
                 logging.info(f"old_sub_id: {latest_sub["id"]}")
@@ -229,7 +231,7 @@ async def update_db_subscription(creation_results: dict):
                     if latest_sub["init_at"]:
                         logging.info(f"old_init: {latest_sub["init_at"]}")
                         old_init = latest_sub["init_at"]
-        logging.warning(f"[renew_subscription]: Succesfully obtained subscription to archive: {e}")
+        logging.warning(f"[renew_subscription]: Succesfully obtained subscription to archive")
 
     except Exception as e:
         logging.warning(f"[renew_subscription]: Failed to obtain subscription to archive: {e}")
