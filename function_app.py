@@ -68,9 +68,9 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
 
     creation_results = await create_subscription()
     logging.info("Results obtained!")
-    result: Subscription = creation_results["result"]
+    result = creation_results["result"]
     logging.info("Subscription Result assigned!")
-    if result and result.id:
+    if result and result["id"]:
         logging.info("Running subscription database update function...")
         await update_db_subscription(creation_results)
     else:
