@@ -52,7 +52,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     body = await validate_clientState(req) ## IMPLEMENT TRY LOGIC
 
     # Validate Subscription
-    await validate_subscription(body) ## IMPLEMENT TRY LOGIC
+    #await validate_subscription(body) ## IMPLEMENT TRY LOGIC
 
     # Send request JSON to upload_blob
     ## TODO
@@ -84,7 +84,7 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
 async def validate_clientState(req: func.HttpRequest) -> json: 
     logging.info("[notify_new_mail]:Validating ClientState...")
     try:
-        body = await req.get_json()
+        body = req.get_json()
         if not isinstance(body.get("value", list)):
             return func.HttpResponse(status_code=400)
         for note in body.get("value",[]):
