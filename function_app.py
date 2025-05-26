@@ -203,7 +203,7 @@ async def update_db_subscription(creation_results: dict):
     init_time = creation_results["init_time"]
     next_expiry: str = creation_results["next_expiry"]
     try:
-        await cosmos_container.upsert_item({
+        cosmos_container.upsert_item({
             "id": result_id,
             "subscription": "subscription",
             "notifcationUrl": "invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
@@ -217,6 +217,7 @@ async def update_db_subscription(creation_results: dict):
 
     ## MOVE OLD TO ARCHIVE IN DB
     try:
+        logging.info("Retrieving old sub information...")
         old_sub_id = latest_sub["id"]
         old_sub_expiry = latest_sub["expirationDateTime"]
         old_init = latest_sub["init_at"]
@@ -225,9 +226,10 @@ async def update_db_subscription(creation_results: dict):
         logging.warning(f"[renew_subscription]: Failed to obtain subscription to archive: {e}")
         return ## --> CREATE FAILSAFE
     try:
+        logging.info("Upserting old sub into archive...")
         ## ADD OLD SUB TO ARCHIVE
         cosmos_container_archive = db_client.get_container_client("Archived Subscriptions")
-        await cosmos_container_archive.upsert_item({
+        cosmos_container_archive.upsert_item({
             "id": old_sub_id,
             "archive_sub_id": "archived",
             "notifcationUrl": "invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
@@ -238,6 +240,7 @@ async def update_db_subscription(creation_results: dict):
         logging.info(f"[renew_subscription]:Successfully added Archive Subscription record to: {cosmos_container_archive.id}")
 
         ## REMOVE OLD SUB FROM ACTIVE
+        logging.info("Removing old sub from active...")
         await cosmos_container.delete_item(item=old_sub_id, partition_key="subscription")
         logging.info(f"[renew_subscription]:Successfully removed Subscription record from: {cosmos_container.id}")
     except CosmosHttpResponseError as e:
