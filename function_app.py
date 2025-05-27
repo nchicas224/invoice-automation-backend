@@ -52,7 +52,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     body = await validate_clientState(req) ## IMPLEMENT TRY LOGIC
 
     # Validate Subscription
-    #await validate_subscription(body) ## IMPLEMENT TRY LOGIC
+    await validate_subscription(body) ## IMPLEMENT TRY LOGIC
 
     # Send request JSON to upload_blob
     ## TODO
