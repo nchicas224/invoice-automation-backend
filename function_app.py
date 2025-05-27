@@ -234,6 +234,8 @@ async def update_db_subscription(creation_results: dict):
                     if latest_sub["init_at"]:
                         logging.info(f"old_init: {latest_sub["init_at"]}")
                         old_init = latest_sub["init_at"]
+        else:
+            raise ValueError("latest_sub is None or Empty")  
         logging.warning(f"[renew_subscription]: Succesfully obtained subscription to archive")
 
     except Exception as e:
@@ -281,12 +283,15 @@ async def update_db_subscription(creation_results: dict):
     escaped_resource = target_resource.replace("'","''")
     odata_filter = f"resource eq '{escaped_resource}'"
 
-    url = "/subscription"
-    query_params = srb.SubscriptionsRequestBuilderGetQueryParameters(filter=odata_filter)
-    request_config = srb.SubscriptionsRequestBuilderGetRequestConfiguration(query_parameters=query_params)
+    try:
+        query_params = srb.SubscriptionsRequestBuilderGetQueryParameters(filter=odata_filter)
+        request_config = srb.SubscriptionsRequestBuilderGetRequestConfiguration(query_parameters=query_params)
 
-    builder = srb(request_adapter=graph_client.request_adapter)
-    page = await builder.get(request_configuration=request_config)
+        builder = srb(request_adapter=graph_client.request_adapter)
+        page = await builder.get(request_configuration=request_config)
+    except Exception as e:
+        logging.warning(f"Failed to build target source subscription URL: {e}")
+        return
 
     logging.warning("Deleting existing subscriptions...")
     while page:
