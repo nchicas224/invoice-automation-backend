@@ -303,7 +303,7 @@ async def update_db_subscription(creation_results: dict):
         for sub in page.value:
             if sub.resource == target_resource:
                 if sub.id == result_id:
-                    logging.warning("[DEBUG]:DONT DELETE SUBSCRIPTION")
+                    logging.warning("[DEBUG]:SAVE SUBSCRIPTION")
                     logging.info(f"Subscription id: {sub.id}, Resource: {sub.resource}")
 
                 logging.warning("[DEBUG]: DELETE SUBSCRIPTION")
