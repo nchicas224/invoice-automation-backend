@@ -62,7 +62,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
 
 #Subscription Timer Trigger Function
 @app.function_name(name="SubscriptionRenewalTimer")
-@app.timer_trigger(schedule="0 */2 * * * *",
+@app.timer_trigger(schedule="0 */5 * * * *",
                    arg_name="timer")
 async def renew_subscription(timer: func.TimerRequest) -> None:
     initialize_logger()
