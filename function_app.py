@@ -187,7 +187,7 @@ async def create_subscription(**kwargs) -> dict:
     graph_client = await get_graph_client()
     logging.info("[renew_subscription]:Submitting new subscription...")
     try:
-        result = await graph_client.subscriptions.post(request_body)
+        result = await graph_client.subscriptions.post(request_body) ## MIGHT NEED TO ADD RETRY LOGIC HERE TO PREVENT LOAD BALANCER ISSUES
         logging.info(f"[renew_subscription]: {result}")
     except Exception as e:
         logging.error(f"Failed to create or update webhook renewal: {e}")
@@ -284,11 +284,13 @@ async def update_db_subscription(creation_results: dict):
     odata_filter = f"resource eq '{escaped_resource}'"
 
     try:
+        logging.info("Setting up URL Builder...")
         query_params = srb.SubscriptionsRequestBuilderGetQueryParameters(filter=odata_filter)
-        request_config = srb.SubscriptionsRequestBuilderGetRequestConfiguration(query_parameters=query_params)
 
-        builder = srb(request_adapter=graph_client.request_adapter)
-        page = await builder.get(request_configuration=request_config)
+        logging.info("Intantiating Builder...")
+        builder = srb(request_adapter=graph_client.request_adapter, path_parameters=query_params)
+        logging.info("Requesting Response")
+        page = await builder.get()
     except Exception as e:
         logging.warning(f"Failed to build target source subscription URL: {e}")
         return
