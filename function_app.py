@@ -123,7 +123,7 @@ async def validate_subscription(body: json):
         sub_expiry = first.get("subscriptionExpirationDateTime")
 
         current_time = datetime.now(timezone.utc)
-        sub_renewal = datetime.fromisoformat(sub_expiry) - timedelta(hours=12)
+        sub_renewal = datetime.fromisoformat(sub_expiry) - timedelta(hours=72)
 
         if current_time >= sub_renewal:
             logging.warning("[notify_new_mail]:Failsafe:Updating subscription...")
