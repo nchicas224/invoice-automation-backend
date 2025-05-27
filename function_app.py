@@ -55,7 +55,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     await validate_subscription(body) ## IMPLEMENT TRY LOGIC
 
     # Send request JSON to upload_blob
-    logging.info(f"Request info: {req}")
+    logging.info(f"Request Headers: {req} \nRequest Body: {body}")
 
     # Return Accepted -> Processing status to Graph API
     return func.HttpResponse(status_code=202)
@@ -111,7 +111,7 @@ async def validate_clientState(req: func.HttpRequest) -> json:
     logging.info("[notify_new_mail]:ClientState verified")
     return body
 
-async def validate_subscription(body: json):
+async def validate_subscription(body: json): ### NEED TO FIX POSSIBLE DUPLICATE CALLINGS
     logging.info("[notify_new_mail]:Validating Subscription Webhook...")
     try:
         value_list = body.get("value")
@@ -201,7 +201,7 @@ async def create_subscription(**kwargs) -> dict:
         "next_expiry": next_expiry
         }
 
-async def update_db_subscription(creation_results: dict):
+async def update_db_subscription(creation_results: dict): ### NEED TO UNBLOAT THIS FUNCTION
     db_client = get_db_client()
     cosmos_container = db_client.get_container_client("Subscriptions")
     result_id = creation_results["result_id"]
