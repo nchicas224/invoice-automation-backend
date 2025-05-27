@@ -138,25 +138,29 @@ async def create_subscription(**kwargs) -> dict:
     db_client = get_db_client()
     sub_id = kwargs.get("sub_id")
     cosmos_container = db_client.get_container_client("Subscriptions")
-    if sub_id:
-        latest_sub = cosmos_container.read_item(item=sub_id, partition_key="subscription")
-    else:
-        query = """
-            SELECT TOP 1 *
-            FROM c
-            WHERE c.subscription = @pk
-            ORDER BY c.init_at DESC
-        """
-        params = [dict(name="@pk", value="subscription")]
+    try:
+        if sub_id:
+            latest_sub = cosmos_container.read_item(item=sub_id, partition_key="subscription")
+        else:
+            query = """
+                SELECT TOP 1 *
+                FROM c
+                WHERE c.subscription = @pk
+                ORDER BY c.init_at DESC
+            """
+            params = [dict(name="@pk", value="subscription")]
 
-        iterator = cosmos_container.query_items(
-            query=query,
-            parameters=params,
-            enable_cross_partition_query=False,
-            partition_key="subscription"
-        )
-        latest_sub = next(iterator, None)
-        logging.info(f"Latest sub from subscription creation....{latest_sub}")
+            iterator = cosmos_container.query_items(
+                query=query,
+                parameters=params,
+                enable_cross_partition_query=False,
+                partition_key="subscription"
+            )
+            latest_sub = next(iterator, None)
+            logging.info(f"Latest sub from subscription creation....{latest_sub}")
+    except Exception as e:
+        logging.warning(f"Failed to get latest_sub...{e}")
+        latest_sub = None
 
     logging.warning("[renew_subscription]:Creating new subscription...")
     keyvault_client = await get_keyvault_client()
@@ -235,27 +239,30 @@ async def update_db_subscription(creation_results: dict):
     except Exception as e:
         logging.warning(f"[renew_subscription]: Failed to obtain subscription to archive: {e}")
         logging.warning(f"latest_sub: {latest_sub}, old_sub_id: {old_sub_id}, old_sub_expiry: {old_sub_expiry}, old_init: {old_init}")
-        return ## --> CREATE FAILSAFE
-    try:
-        logging.info("Upserting old sub into archive...")
-        ## ADD OLD SUB TO ARCHIVE
-        cosmos_container_archive = db_client.get_container_client("Archived Subscriptions")
-        cosmos_container_archive.upsert_item({
-            "id": old_sub_id,
-            "archive_sub_id": "archived",
-            "notifcationUrl": "invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
-            "resource": f"/users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages",
-            "expirationDateTime": old_sub_expiry,
-            "init_at": old_init
-        })
-        logging.info(f"[renew_subscription]:Successfully added Archive Subscription record to: {cosmos_container_archive.id}")
 
-        ## REMOVE OLD SUB FROM ACTIVE
-        logging.info("Removing old sub from active...")
-        cosmos_container.delete_item(item=old_sub_id, partition_key="subscription")
-        logging.info(f"[renew_subscription]:Successfully removed Subscription record from: {cosmos_container.id}")
-    except CosmosHttpResponseError as e:
-        logging.warning(f"Failed to update Subscription from {cosmos_container.id}: {e.message}")
+    if latest_sub:
+        try:
+            logging.info("Upserting old sub into archive...")
+            ## ADD OLD SUB TO ARCHIVE
+            cosmos_container_archive = db_client.get_container_client("Archived Subscriptions")
+            cosmos_container_archive.upsert_item({
+                "id": old_sub_id,
+                "archive_sub_id": "archived",
+                "notifcationUrl": "invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
+                "resource": f"/users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages",
+                "expirationDateTime": old_sub_expiry,
+                "init_at": old_init
+            })
+            logging.info(f"[renew_subscription]:Successfully added Archive Subscription record to: {cosmos_container_archive.id}")
+
+            ## REMOVE OLD SUB FROM ACTIVE
+            logging.info("Removing old sub from active...")
+            cosmos_container.delete_item(item=old_sub_id, partition_key="subscription")
+            logging.info(f"[renew_subscription]:Successfully removed Subscription record from: {cosmos_container.id}")
+        except CosmosHttpResponseError as e:
+            logging.warning(f"Failed to update Subscription from {cosmos_container.id}: {e.message}")
+    else:
+        logging.warning("Latest_sub not found. Skipping db update...")
 
     if latest_sub:
         try:
@@ -264,7 +271,34 @@ async def update_db_subscription(creation_results: dict):
             logging.info("Expired subscription deleted from graph.")
         except Exception as e:
             logging.warning(f"[renew_subscription]:Failed to delete expired subscription")
-            return
+    else:
+        logging.warning("Latest_sub not found. Skipping sub deletion...")
+
+    # Delete all old graph subscriptions to target
+    from msgraph.generated.subscriptions.subscriptions_request_builder import SubscriptionsRequestBuilder as srb
+
+    target_resource = f"/users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages"
+    escaped_resource = target_resource.replace("'","''")
+    odata_filter = f"resource eq '{escaped_resource}'"
+
+    url = "/subscription"
+    query_params = srb.SubscriptionsRequestBuilderGetQueryParameters(filter=odata_filter)
+    request_config = srb.SubscriptionsRequestBuilderGetRequestConfiguration(query_parameters=query_params)
+
+    builder = srb(request_adapter=graph_client.request_adapter)
+    page = await builder.get(request_configuration=request_config)
+
+    logging.warning("Deleting existing subscriptions...")
+    while page:
+        logging.info("Existing subscriptions")
+        for sub in page.value:
+            logging.info(f"Subscription id: {sub.id}")
+            if sub.id == result_id:
+                logging.warning("[DEBUG]:DONT DELETE SUBSCRIPTION")
+            logging.warning("[DEBUG]: DELETE SUBSCRIPTION")
+        if not page.odata_next_link:
+            break
+        page = await builder.with_url(page.odata_next_link)
     
 
 # @app.queue_trigger(arg_name="azqueue", queue_name="invoices",
