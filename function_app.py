@@ -304,10 +304,13 @@ async def update_db_subscription(creation_results: dict):
             logging.info(f"Subscription id: {sub.id}")
             if sub.id == result_id:
                 logging.warning("[DEBUG]:DONT DELETE SUBSCRIPTION")
+                logging.info(f"Subscription id: {sub.id}")
             logging.warning("[DEBUG]: DELETE SUBSCRIPTION")
         if not page.odata_next_link:
+            logging.warning("No further pages found, breaking loop...")
             break
-        page = await builder.with_url(page.odata_next_link)
+        logging.warning("New odata link page...")
+        page = await builder.with_url(page.odata_next_link).get()
     
 
 # @app.queue_trigger(arg_name="azqueue", queue_name="invoices",
