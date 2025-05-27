@@ -55,7 +55,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     await validate_subscription(body) ## IMPLEMENT TRY LOGIC
 
     # Send request JSON to upload_blob
-    ## TODO
+    logging.info(f"Request info: {req}")
 
     # Return Accepted -> Processing status to Graph API
     return func.HttpResponse(status_code=202)
@@ -123,7 +123,7 @@ async def validate_subscription(body: json):
         sub_expiry = first.get("subscriptionExpirationDateTime")
 
         current_time = datetime.now(timezone.utc)
-        sub_renewal = datetime.fromisoformat(sub_expiry) - timedelta(hours=72)
+        sub_renewal = datetime.fromisoformat(sub_expiry) - timedelta(hours=12)
 
         if current_time >= sub_renewal:
             logging.warning("[notify_new_mail]:Failsafe:Updating subscription...")
