@@ -299,8 +299,9 @@ async def update_db_subscription(creation_results: dict):
 
     logging.warning("Deleting existing subscriptions...")
     while page:
-        logging.info("Existing subscriptions")
+        logging.info(f"Existing subscriptions in page: {page}")
         for sub in page.value:
+            logging.info(f"Subscription: {sub}")
             if sub.resource == target_resource:
                 if sub.id == result_id:
                     logging.warning("[DEBUG]:SAVE SUBSCRIPTION")
