@@ -302,11 +302,12 @@ async def update_db_subscription(creation_results: dict):
         for sub in page.value:
             if sub.resource == target_resource:
                 if sub.id == result_id:
-                    logging.warning("[DEBUG]:SAVE SUBSCRIPTION")
+                    logging.warning("Current subscription found, skipping deletion...")
                     logging.info(f"Subscription id: {sub.id}, Resource: {sub.resource}")
-
-                logging.warning("[DEBUG]: DELETE SUBSCRIPTION")
-                logging.info(f"Subscription id: {sub.id}, Resource: {sub.resource}")
+                else:
+                    logging.warning("Deleting Subscription...")
+                    logging.info(f"Subscription id: {sub.id}, Resource: {sub.resource}")
+                    await graph_client.subscriptions.by_subscription_id(sub.id).delete()
         if not page.odata_next_link:
             logging.warning("No further pages found, breaking loop...")
             break
