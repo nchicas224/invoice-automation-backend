@@ -301,11 +301,13 @@ async def update_db_subscription(creation_results: dict):
     while page:
         logging.info("Existing subscriptions")
         for sub in page.value:
-            logging.info(f"Subscription id: {sub.id}")
-            if sub.id == result_id:
-                logging.warning("[DEBUG]:DONT DELETE SUBSCRIPTION")
-                logging.info(f"Subscription id: {sub.id}")
-            logging.warning("[DEBUG]: DELETE SUBSCRIPTION")
+            if sub.resource == target_resource:
+                if sub.id == result_id:
+                    logging.warning("[DEBUG]:DONT DELETE SUBSCRIPTION")
+                    logging.info(f"Subscription id: {sub.id}, Resource: {sub.resource}")
+
+                logging.warning("[DEBUG]: DELETE SUBSCRIPTION")
+                logging.info(f"Subscription id: {sub.id}, Resource: {sub.resource}")
         if not page.odata_next_link:
             logging.warning("No further pages found, breaking loop...")
             break
