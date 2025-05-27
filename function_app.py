@@ -290,7 +290,7 @@ async def update_db_subscription(creation_results: dict):
         request_config = BaseRequestConfiguration(query_parameters=query_params)
 
         logging.info("Intantiating Builder...")
-        builder = srb(request_adapter=graph_client.request_adapter)
+        builder = srb(request_adapter=graph_client.request_adapter, path_parameters={})
         logging.info("Requesting Response")
         page = await builder.get(request_configuration=request_config)
     except Exception as e:
