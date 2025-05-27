@@ -127,11 +127,13 @@ async def validate_subscription(body: json):
 
         if current_time >= sub_renewal:
             logging.warning("[notify_new_mail]:Failsafe:Updating subscription...")
-            await create_subscription(sub_id=sub_id)
+            creation_results = await create_subscription(sub_id=sub_id)
+            await update_db_subscription(creation_results)
     except Exception as e:
         logging.error(f"[notify_new_mail]:Error retrieving subscription id and expiry date: {e}")
         logging.error("[notify_new_mail]:Triggering subscription renewal...")
-        await create_subscription(sub_id=sub_id)
+        creation_results = await create_subscription(sub_id=sub_id)
+        await update_db_subscription(creation_results)
 
 async def create_subscription(**kwargs) -> dict:
     ## CALL DB FOR LATEST SUBSCRIPTION (DB SHOULD ONLY STORE THE CURRENT ACTIVE DB) --> MAYBE ARCHIVE THE OLD IF NEW CREATED
@@ -278,17 +280,9 @@ async def update_db_subscription(creation_results: dict):
 
     # Delete all old graph subscriptions to target
     from msgraph.generated.subscriptions.subscriptions_request_builder import SubscriptionsRequestBuilder as srb
-    from kiota_abstractions.base_request_configuration import BaseRequestConfiguration
 
     target_resource = f"users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages"
-    escaped_resource = target_resource.replace("'","''")
-    odata_filter = f"resource eq '{escaped_resource}'"
-
     try:
-        logging.info("Setting up URL Builder...")
-        query_params = srb.SubscriptionsRequestBuilderGetQueryParameters(filter=odata_filter)
-        request_config = BaseRequestConfiguration(query_parameters=query_params)
-
         logging.info("Intantiating Builder...")
         builder = srb(request_adapter=graph_client.request_adapter, path_parameters={})
         logging.info("Requesting Response")
