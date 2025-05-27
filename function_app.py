@@ -278,6 +278,7 @@ async def update_db_subscription(creation_results: dict):
 
     # Delete all old graph subscriptions to target
     from msgraph.generated.subscriptions.subscriptions_request_builder import SubscriptionsRequestBuilder as srb
+    from kiota_abstractions.base_request_configuration import BaseRequestConfiguration
 
     target_resource = f"/users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages"
     escaped_resource = target_resource.replace("'","''")
@@ -286,11 +287,12 @@ async def update_db_subscription(creation_results: dict):
     try:
         logging.info("Setting up URL Builder...")
         query_params = srb.SubscriptionsRequestBuilderGetQueryParameters(filter=odata_filter)
+        request_config = BaseRequestConfiguration(query_parameters=query_params)
 
         logging.info("Intantiating Builder...")
-        builder = srb(request_adapter=graph_client.request_adapter, path_parameters=query_params)
+        builder = srb(request_adapter=graph_client.request_adapter)
         logging.info("Requesting Response")
-        page = await builder.get()
+        page = await builder.get(request_configuration=request_config)
     except Exception as e:
         logging.warning(f"Failed to build target source subscription URL: {e}")
         return
