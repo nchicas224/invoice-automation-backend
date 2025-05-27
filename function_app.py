@@ -292,7 +292,7 @@ async def update_db_subscription(creation_results: dict):
         logging.info("Intantiating Builder...")
         builder = srb(request_adapter=graph_client.request_adapter, path_parameters={})
         logging.info("Requesting Response")
-        page = await builder.get(request_configuration=request_config)
+        page = await builder.get()
     except Exception as e:
         logging.warning(f"Failed to build target source subscription URL: {e}")
         return
