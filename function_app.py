@@ -280,7 +280,7 @@ async def update_db_subscription(creation_results: dict):
     from msgraph.generated.subscriptions.subscriptions_request_builder import SubscriptionsRequestBuilder as srb
     from kiota_abstractions.base_request_configuration import BaseRequestConfiguration
 
-    target_resource = f"/users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages"
+    target_resource = f"users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages"
     escaped_resource = target_resource.replace("'","''")
     odata_filter = f"resource eq '{escaped_resource}'"
 
@@ -299,9 +299,7 @@ async def update_db_subscription(creation_results: dict):
 
     logging.warning("Deleting existing subscriptions...")
     while page:
-        logging.info(f"Existing subscriptions in page: {page}")
         for sub in page.value:
-            logging.info(f"Subscription: {sub}")
             if sub.resource == target_resource:
                 if sub.id == result_id:
                     logging.warning("[DEBUG]:SAVE SUBSCRIPTION")
