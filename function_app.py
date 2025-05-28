@@ -55,7 +55,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     await validate_subscription(body) ## IMPLEMENT TRY LOGIC
 
     # Send request JSON to upload_blob
-    logging.info(f"Request Message ID: {body.get("value")}") ##???? HOW DO JSON MODULE OBJECTS WORK?
+    logging.info(f"Request Message ID: {body.get("value")[0].get("resourceData").get("id")}") ##???? HOW DO JSON MODULE OBJECTS WORK?
 
     # Return Accepted -> Processing status to Graph API
     return func.HttpResponse(status_code=202)
