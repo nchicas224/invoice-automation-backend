@@ -55,7 +55,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     await validate_subscription(body) ## IMPLEMENT TRY LOGIC
 
     # Send request JSON to upload_blob
-    logging.info(f"Request Headers: {req} \nRequest Body: {body}")
+    logging.info(f"Request Message ID: {body.get("value")[0].get("id")}") ##???? HOW DO JSON MODULE OBJECTS WORK?
 
     # Return Accepted -> Processing status to Graph API
     return func.HttpResponse(status_code=202)
@@ -81,7 +81,7 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
         logging.warning("Failed to upsert Subscription: 'result' or 'application.id' was not found.")
     logging.info(f"Renewal timer trigger successfully ran at: {utc_timestamp}")    
 
-async def validate_clientState(req: func.HttpRequest) -> json: 
+async def validate_clientState(req: func.HttpRequest) -> list: 
     logging.info("[notify_new_mail]:Validating ClientState...")
     try:
         body = req.get_json()
@@ -111,7 +111,7 @@ async def validate_clientState(req: func.HttpRequest) -> json:
     logging.info("[notify_new_mail]:ClientState verified")
     return body
 
-async def validate_subscription(body: json): ### NEED TO FIX POSSIBLE DUPLICATE CALLINGS
+async def validate_subscription(body: list): ### NEED TO FIX POSSIBLE DUPLICATE CALLINGS
     logging.info("[notify_new_mail]:Validating Subscription Webhook...")
     try:
         value_list = body.get("value")
@@ -129,6 +129,7 @@ async def validate_subscription(body: json): ### NEED TO FIX POSSIBLE DUPLICATE 
             logging.warning("[notify_new_mail]:Failsafe:Updating subscription...")
             creation_results = await create_subscription(sub_id=sub_id)
             await update_db_subscription(creation_results)
+
     except Exception as e:
         logging.error(f"[notify_new_mail]:Error retrieving subscription id and expiry date: {e}")
         logging.error("[notify_new_mail]:Triggering subscription renewal...")
