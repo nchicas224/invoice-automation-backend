@@ -408,7 +408,7 @@ async def upload_to_blob(message_info: dict):
 
     container_name_clean = sender.lower().split("@")[0]
     invoice_container_name=f"{container_name_clean}-invoices-raw"
-    cr_container_name=f"{container_name_clean}-checkRequest-raw"
+    cr_container_name=f"{container_name_clean}-checkrequests-raw"
     conn_str = os.environ["BLOB_CONNECTION_STRING"]
 
     blob_sv_client = BlobServiceClient.from_connection_string(conn_str=conn_str)
