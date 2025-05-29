@@ -82,14 +82,14 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
        if isinstance(check, HttpResponse):
            return check
     except Exception as e:
-        logging.error(e)
-        return
+        logging.exception(e)
+        return func.HttpResponse(status_code=500, body="Failed to Validate Subscription")
 
     # Start processes
     try:
         await start(body=body)
     except Exception as e:
-        logging.error(f"Failed to process invoice(s): {e}")
+        logging.exception(f"Failed to process invoice(s): {e}")
         logging.error(f"Discarding notification...")
         return func.HttpResponse(status_code=200)
 
