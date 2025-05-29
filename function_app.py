@@ -391,7 +391,7 @@ async def process_message(message: Message) -> dict:
             "message": message,
             "id": message.id,
             "conversation_id": message.conversation_id,
-            "sender": message.sender,
+            "sender": message.sender.email_address.address,
             "cc": message.cc_recipients,
             "body": message.body,
             "subject": message.subject,
@@ -404,8 +404,7 @@ async def process_message(message: Message) -> dict:
 
 async def upload_to_blob(message_info: dict):
     attachments = message_info.get("attachments")
-    sender_info: Dict[str,Dict] = message_info.get("sender")
-    sender = sender_info.get("emailAddress").get("address")
+    sender = message_info.get("sender")
 
     invoice_container_name=f"{sender}-invoices-raw"
     cr_container_name=f"{sender}-checkRequest-raw"
