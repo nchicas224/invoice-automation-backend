@@ -404,10 +404,11 @@ async def process_message(message: Message) -> dict:
 
 async def upload_to_blob(message_info: dict):
     attachments = message_info.get("attachments")
-    sender = message_info.get("sender")
+    sender: str = message_info.get("sender")
 
-    invoice_container_name=f"{sender}-invoices-raw"
-    cr_container_name=f"{sender}-checkRequest-raw"
+    container_name_clean = sender.lower().split("@")[0]
+    invoice_container_name=f"{container_name_clean}-invoices-raw"
+    cr_container_name=f"{container_name_clean}-checkRequest-raw"
     conn_str = os.environ["BLOB_CONNECTION_STRING"]
 
     blob_sv_client = BlobServiceClient.from_connection_string(conn_str=conn_str)
