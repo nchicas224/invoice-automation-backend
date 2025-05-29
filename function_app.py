@@ -136,7 +136,7 @@ async def validate_clientState(req: func.HttpRequest) -> Dict[str,List[Dict[str,
                     payload = jwt.decode(
                         clientState,
                         secret,
-                        algorithm = "HS256",
+                        algorithms = "HS256",
                         options = {"require_exp": True}
                     )
                     jwt_expiry = payload["expiry"]
