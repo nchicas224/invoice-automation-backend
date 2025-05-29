@@ -72,9 +72,9 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
         if isinstance(check, (HttpResponse)):
             return check
         body = check
-    except Exception as e:
-        logging.error(e)
-        return
+    except Exception:
+        logging.exception("Unexpected error during ClientState Validation")
+        return func.HttpRequest(status_code=500, body="Server Error")
     
     # Validate Subscription
     try:
@@ -122,6 +122,7 @@ async def validate_clientState(req: func.HttpRequest) -> Dict[str,List[Dict[str,
     try:
         body: Dict[str,List[Dict[str,Any]]] = req.get_json()
         if not isinstance(body.get("value"), list):
+            logging.error("Value is not an iterable list.")
             return func.HttpResponse(status_code=400)
         try:
             for note in body.get("value",[]):
@@ -143,6 +144,7 @@ async def validate_clientState(req: func.HttpRequest) -> Dict[str,List[Dict[str,
                         logging.error("Returning 401, ClientState not authorized or missing.")
                         return func.HttpResponse(status_code=401)
                 else:
+                    logging.error("ClientState not found in response body.")
                     return func.HttpResponse(status_code=400, body="ClientState not found")
         except Exception as e:
             e.add_note("Error during ClientState validation")
