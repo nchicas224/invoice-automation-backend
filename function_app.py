@@ -14,12 +14,26 @@ from azure.identity import ClientSecretCredential
 from azure.identity.aio import DefaultAzureCredential
 from msgraph import GraphServiceClient
 from msgraph.generated.models.subscription import Subscription
+from msgraph.generated.users.item.send_mail.send_mail_post_request_body import SendMailPostRequestBody
+from msgraph.generated.models.message import Message
+from msgraph.generated.models.item_body import ItemBody
+from msgraph.generated.models.body_type import BodyType
+from msgraph.generated.models.recipient import Recipient
+from msgraph.generated.models.email_address import EmailAddress
+from msgraph.generated.models.attachment import Attachment
+from msgraph.generated.models.file_attachment import FileAttachment
 from azure.cosmos import CosmosClient, ContainerProxy, DatabaseProxy, CosmosDict
 from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosResourceNotFoundError
+from azure.storage.blob import BlobClient
 from openai import AzureOpenAI
+from pypdf import PdfWriter
+from io import BytesIO
 from shared.graph_client import get_graph_client
 from shared.database_client import get_db_client
 from shared.keyvault_client import get_keyvault_client
+from shared.di_process import get_invoice_fields
+from shared.process_ai_results import process_ai_results
+from shared.populate_checkform import fillout_form
 from shared.azure_monitor import failsafe_counter, tracer, meter, initialize_logger
 
 app = func.FunctionApp()
@@ -55,7 +69,13 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     await validate_subscription(body) ## IMPLEMENT TRY LOGIC
 
     # Send request JSON to upload_blob
-    logging.info(f"Request Message ID: {body.get("value")[0].get("resourceData").get("id")}") ##???? HOW DO JSON MODULE OBJECTS WORK?
+    message_id = body.get("value")[0].get("resourceData").get("id")
+    logging.info(f"Request Message ID: {message_id}") ## BODY=DICT{LIST OF DICTS}
+    
+    message_info = await process_message(message_id)
+    attachments: list[list,list] = upload_to_blob(message_info=message_info)
+
+    return_mail(attachments=attachments, message_info=message_info)
 
     # Return Accepted -> Processing status to Graph API
     return func.HttpResponse(status_code=202)
@@ -309,6 +329,100 @@ async def update_db_subscription(creation_results: dict): ### NEED TO UNBLOAT TH
         logging.warning("New odata link page...")
         page = await builder.with_url(page.odata_next_link).get()
     
+async def process_message(message_id: str) -> dict:
+    graph_client = await get_graph_client()
+
+    # Grab message from mailbox
+    message = await graph_client.users.by_user_id(
+        os.environ["INVOICEs_MAILBOX_ID"]).messages.by_message_id(message_id=message_id).get()
+    
+    if message.has_attachments:
+        message_info = {
+            "message": message,
+            "id": message_id,
+            "sender": message.sender,
+            "cc": message.cc_recipients,
+            "body": message.body,
+            "subject": message.subject,
+            "attachments": message.attachments
+        }
+
+        try:
+            return message_info
+        except Exception as e:
+            logging.warning("Failed to upload blob")
+    else:
+        raise ValueError("Message does not have attachments, skipping processing...")
+
+async def upload_to_blob(message_info: dict):
+    attachments = message_info.get("attachments")
+    sender = message_info.get("sender")
+
+    invoices = []
+    check_requests = []
+
+    for obj in attachments:
+        with open(obj, "rb") as f:
+            stream = f.read()
+
+        ai_results = get_invoice_fields(stream)
+        invoice_info = await process_ai_results(ai_results)
+
+        invoice_fields: dict = invoice_info.get("invoice_fields")
+        table_fields: list = invoice_info.get("table_fields")
+
+        invoice_id = invoice_fields.get("InvoiceId")
+        vendor_name = invoice_fields.get("VendorName")
+        blob_name = invoice_id + vendor_name
+
+        check_rq_buffer = BytesIO()
+        writer: PdfWriter = fillout_form(invoice_fields=invoice_fields, table_fields=table_fields)
+        writer.write(check_rq_buffer)
+        check_rq_buffer.seek(0)
+        
+        invoices.append(stream)
+        check_requests.append(check_rq_buffer)
+
+        invoice_blob_client = BlobClient.from_connection_string(
+            conn_str=os.environ["BLOB_CONNECTION_STRING"],
+            container_name=f"{sender}-checkrequest-raw",
+            blob_name=blob_name
+        )
+        checkrequest_blob_client = BlobClient.from_connection_string(
+            conn_str=os.environ["BLOB_CONNECTION_STRING"],
+            container_name=f"{sender}-invoices-raw",
+            blob_name=blob_name
+        )
+
+        invoice_blob_client.upload_blob(stream, overwrite=True)
+        checkrequest_blob_client.upload_blob(check_rq_buffer, overwrite=True)
+
+    return [invoices,check_requests]
+
+async def return_mail(attachments: list, message_info: dict):
+    graph_client = await get_graph_client()
+    request_body = SendMailPostRequestBody(
+        message = Message(
+            subject = f"Check Request:{message_info.get("subject")}",
+            body = ItemBody(
+                content_type= BodyType.Text,
+                content = "Please review the Check Request for Approval."
+            ),
+            to_recipients= [
+                Recipient(
+                    email_address = EmailAddress(
+                        address = message_info.get("sender")
+                    ),
+                ),
+            ],
+            attachments = [
+                FileAttachment(
+                    
+                )
+            ]
+        )
+    )
+
 
 # @app.queue_trigger(arg_name="azqueue", queue_name="invoices",
 #                                connection="8043d5_STORAGE") 
