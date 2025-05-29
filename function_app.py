@@ -24,6 +24,7 @@ from msgraph.generated.models.recipient import Recipient
 from msgraph.generated.models.email_address import EmailAddress
 from msgraph.generated.models.attachment import Attachment
 from msgraph.generated.models.file_attachment import FileAttachment
+from azure.functions import HttpResponse
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.cosmos import CosmosClient, ContainerProxy, DatabaseProxy, CosmosDict
 from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosResourceNotFoundError
@@ -67,16 +68,22 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
 
     # Validate ClientState
     try:
-        body = await validate_clientState(req) ## IMPLEMENT TRY LOGIC
+        check = await validate_clientState(req)
+        if isinstance(check, (HttpResponse)):
+            return check
+        body = check
     except Exception as e:
         logging.error(e)
         return
     
     # Validate Subscription
     try:
-        await validate_subscription(body) ## IMPLEMENT TRY LOGIC
+       check = await validate_subscription(body)
+       if isinstance(check, HttpResponse):
+           return check
     except Exception as e:
         logging.error(e)
+        return
 
     # Start processes
     try:
@@ -139,7 +146,7 @@ async def validate_clientState(req: func.HttpRequest) -> Dict[str,List[Dict[str,
                     return func.HttpResponse(status_code=400, body="ClientState not found")
         except Exception as e:
             e.add_note("Error during ClientState validation")
-            return e
+            raise e
     except ValueError as v:
         logging.error(f"JSON body parse: {v}")
         return func.HttpResponse(status_code=400)
