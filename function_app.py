@@ -98,7 +98,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
 
 #Subscription Timer Trigger Function
 @app.function_name(name="SubscriptionRenewalTimer")
-@app.timer_trigger(schedule="0 */5 * * * *",
+@app.timer_trigger(schedule="0 */30 * * * *",
                    arg_name="timer")
 async def renew_subscription(timer: func.TimerRequest) -> None:
     initialize_logger()
@@ -135,7 +135,7 @@ async def validate_clientState(req: func.HttpRequest) -> Dict[str,List[Dict[str,
 
                     payload = jwt.decode(
                         clientState,
-                        secret,
+                        secret.value,
                         algorithms = "HS256",
                         options = {"require_exp": True}
                     )
