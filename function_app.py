@@ -146,7 +146,7 @@ async def validate_clientState(req: func.HttpRequest) -> Dict[str,List[Dict[str,
     logging.info("[notify_new_mail]:ClientState verified")
     return body
 
-async def validate_subscription(body: list): ### NEED TO FIX POSSIBLE DUPLICATE CALLINGS
+async def validate_subscription(body: Dict[str,List[Dict[str,Any]]]): ### NEED TO FIX POSSIBLE DUPLICATE CALLINGS
     logging.info("[notify_new_mail]:Validating Subscription Webhook...")
     try:
         value_list = body.get("value")
