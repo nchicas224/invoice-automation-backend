@@ -7,6 +7,7 @@ import azure.functions as func
 import azure.durable_functions as df
 import asyncio
 import jwt
+from typing import List,Dict,Any
 from datetime import datetime, timedelta, timezone
 from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry import trace, metrics
@@ -14,7 +15,8 @@ from azure.identity import ClientSecretCredential
 from azure.identity.aio import DefaultAzureCredential
 from msgraph import GraphServiceClient
 from msgraph.generated.models.subscription import Subscription
-from msgraph.generated.users.item.send_mail.send_mail_post_request_body import SendMailPostRequestBody
+from msgraph.generated.users.item.messages.item.message_item_request_builder import MessageItemRequestBuilder
+from msgraph.generated.users.item.messages.item.reply.reply_post_request_body import ReplyPostRequestBody
 from msgraph.generated.models.message import Message
 from msgraph.generated.models.item_body import ItemBody
 from msgraph.generated.models.body_type import BodyType
@@ -22,9 +24,10 @@ from msgraph.generated.models.recipient import Recipient
 from msgraph.generated.models.email_address import EmailAddress
 from msgraph.generated.models.attachment import Attachment
 from msgraph.generated.models.file_attachment import FileAttachment
+from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.cosmos import CosmosClient, ContainerProxy, DatabaseProxy, CosmosDict
 from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosResourceNotFoundError
-from azure.storage.blob import BlobClient
+from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
 from openai import AzureOpenAI
 from pypdf import PdfWriter
 from io import BytesIO
@@ -68,14 +71,12 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     # Validate Subscription
     await validate_subscription(body) ## IMPLEMENT TRY LOGIC
 
-    # Send request JSON to upload_blob
-    message_id = body.get("value")[0].get("resourceData").get("id")
-    logging.info(f"Request Message ID: {message_id}") ## BODY=DICT{LIST OF DICTS}
-    
-    message_info = await process_message(message_id)
-    attachments: list[list,list] = upload_to_blob(message_info=message_info)
-
-    return_mail(attachments=attachments, message_info=message_info)
+    try:
+        await start(body=body)
+    except Exception as e:
+        logging.error(f"Failed to process invoice(s): {e}")
+        logging.error(f"Discarding notification...")
+        return
 
     # Return Accepted -> Processing status to Graph API
     return func.HttpResponse(status_code=202)
@@ -101,32 +102,38 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
         logging.warning("Failed to upsert Subscription: 'result' or 'application.id' was not found.")
     logging.info(f"Renewal timer trigger successfully ran at: {utc_timestamp}")    
 
-async def validate_clientState(req: func.HttpRequest) -> list: 
+async def validate_clientState(req: func.HttpRequest) -> Dict[str,List[Dict[str,Any]]]: 
     logging.info("[notify_new_mail]:Validating ClientState...")
     try:
-        body = req.get_json()
+        body: Dict[str,List[Dict[str,Any]]] = req.get_json()
         if not isinstance(body.get("value"), list):
             return func.HttpResponse(status_code=400)
-        for note in body.get("value",[]):
-            if note.get("ClientState"):
-                clientState = note["ClientState"]
-                keyvault_client = await get_keyvault_client()
-                secret = await keyvault_client.get_secret("client-state-secret")
-                sub_expiry_raw = note["subscriptionExpirationDateTime"]
-                sub_expiry = int(datetime.fromisoformat(sub_expiry_raw).timestamp())
+        try:
+            for note in body.get("value",[]):
+                if note.get("ClientState"):
+                    clientState = note["ClientState"]
+                    keyvault_client = await get_keyvault_client()
+                    secret = await keyvault_client.get_secret("client-state-secret")
+                    sub_expiry_raw = note["subscriptionExpirationDateTime"]
+                    sub_expiry = int(datetime.fromisoformat(sub_expiry_raw).timestamp())
 
-                payload = jwt.decode(
-                    clientState,
-                    secret,
-                    algorithm = "HS256",
-                    options = {"require_exp": True}
-                )
-                jwt_expiry = payload["expiry"]
-                if not jwt_expiry == sub_expiry:
-                    logging.error("Returning 401, ClientState not authorized or missing.")
-                    return func.HttpResponse(status_code=401)
-    except Exception as e:
-        logging.error(f"JSON body parse or ClientState check failed {e}")
+                    payload = jwt.decode(
+                        clientState,
+                        secret,
+                        algorithm = "HS256",
+                        options = {"require_exp": True}
+                    )
+                    jwt_expiry = payload["expiry"]
+                    if not jwt_expiry == sub_expiry:
+                        logging.error("Returning 401, ClientState not authorized or missing.")
+                        return func.HttpResponse(status_code=401)
+                else:
+                    return func.HttpResponse(status_code=400, body="ClientState not found")
+        except Exception as e:
+            e.add_note("Error during ClientState validation")
+            return e
+    except ValueError as v:
+        logging.error(f"JSON body parse: {v}")
         return func.HttpResponse(status_code=400)
     logging.info("[notify_new_mail]:ClientState verified")
     return body
@@ -329,17 +336,44 @@ async def update_db_subscription(creation_results: dict): ### NEED TO UNBLOAT TH
         logging.warning("New odata link page...")
         page = await builder.with_url(page.odata_next_link).get()
     
-async def process_message(message_id: str) -> dict:
+async def start(body: Dict[str,List[Dict[str,Any]]]) -> None:
     graph_client = await get_graph_client()
 
-    # Grab message from mailbox
-    message = await graph_client.users.by_user_id(
-        os.environ["INVOICEs_MAILBOX_ID"]).messages.by_message_id(message_id=message_id).get()
+    try:
+        message_id = body.get("value")[0].get("resourceData").get("id")
+        logging.info(f"Request Message ID: {message_id}")
+    except Exception as e:
+        logging.error(f"Message ID was not found: {e}")
+        return
+
+    req_builder: MessageItemRequestBuilder = graph_client.users.by_user_id(
+        os.environ["INVOICES_MAILBOX_ID"]).messages.by_message_id(message_id=message_id)
+
+    message = await req_builder.get()
+    try:
+        message_info = await process_message(message)
+    except ValueError as v:
+        logging.error(v)
+        return
+    
+    attachments_pairs: List[Dict[str,Any]] = upload_to_blob(message_info=message_info)
+
+    request_body: ReplyPostRequestBody = return_mail(attachment_pairs=attachments_pairs, message_info=message_info)
+
+    try:
+        await req_builder.reply.post(body=request_body)
+        logging.info("Reply Posted!")
+    except Exception as e:
+        logging.error(f"Failed to post reply: {e}")
+        return
+
+async def process_message(message: Message) -> dict:
     
     if message.has_attachments:
         message_info = {
             "message": message,
-            "id": message_id,
+            "id": message.id,
+            "conversation_id": message.conversation_id,
             "sender": message.sender,
             "cc": message.cc_recipients,
             "body": message.body,
@@ -347,10 +381,7 @@ async def process_message(message_id: str) -> dict:
             "attachments": message.attachments
         }
 
-        try:
-            return message_info
-        except Exception as e:
-            logging.warning("Failed to upload blob")
+        return message_info
     else:
         raise ValueError("Message does not have attachments, skipping processing...")
 
@@ -358,14 +389,29 @@ async def upload_to_blob(message_info: dict):
     attachments = message_info.get("attachments")
     sender = message_info.get("sender")
 
-    invoices = []
-    check_requests = []
+    invoice_container_name=f"{sender}-invoices-raw"
+    cr_container_name=f"{sender}-checkRequest-raw"
+    conn_str = os.environ["BLOB_CONNECTION_STRING"]
+
+    blob_sv_client = BlobServiceClient.from_connection_string(conn_str=conn_str)
+
+    invoice_container = blob_sv_client.get_container_client(invoice_container_name)
+    cr_container = blob_sv_client.get_container_client(cr_container_name)
+
+    test = [invoice_container, cr_container]
+    for i, container in enumerate(test):
+        try:
+            container.create_container()
+        except ResourceExistsError:
+            pass
+
+    attachment_pairs = []
 
     for obj in attachments:
         with open(obj, "rb") as f:
-            stream = f.read()
+            inv_bytes = f.read()
 
-        ai_results = get_invoice_fields(stream)
+        ai_results = get_invoice_fields(inv_bytes)
         invoice_info = await process_ai_results(ai_results)
 
         invoice_fields: dict = invoice_info.get("invoice_fields")
@@ -373,37 +419,87 @@ async def upload_to_blob(message_info: dict):
 
         invoice_id = invoice_fields.get("InvoiceId")
         vendor_name = invoice_fields.get("VendorName")
-        blob_name = invoice_id + vendor_name
+        invoice_blob_name = f"Invoice_{invoice_id}_{vendor_name}.pdf"
+        cr_blob_name = f"Check_Request_{invoice_id}_{vendor_name}.pdf"
 
         check_rq_buffer = BytesIO()
         writer: PdfWriter = fillout_form(invoice_fields=invoice_fields, table_fields=table_fields)
         writer.write(check_rq_buffer)
         check_rq_buffer.seek(0)
+        cr_bytes: bytes = check_rq_buffer.getvalue()
         
-        invoices.append(stream)
-        check_requests.append(check_rq_buffer)
+        pair = {
+            "invoice_id": invoice_id,
+            "vendor_name": vendor_name,
+            "invoice": {
+                "bytes": inv_bytes,
+                "blob_name": invoice_blob_name,
+            },
+            "check_request": {
+                "bytes": cr_bytes,
+                "blob_name": cr_blob_name,
+            }
+        }
 
-        invoice_blob_client = BlobClient.from_connection_string(
-            conn_str=os.environ["BLOB_CONNECTION_STRING"],
-            container_name=f"{sender}-checkrequest-raw",
-            blob_name=blob_name
+        attachment_pairs.append(pair)
+        
+        invoice_blob_client = invoice_container.get_blob_client(invoice_blob_name)
+        checkrequest_blob_client = cr_container.get_blob_client(cr_blob_name)
+
+        upload_list = [
+            {
+                "blob_client": invoice_blob_client,
+                "container": invoice_container,
+                "bytes": inv_bytes
+            },
+            {
+                "blob_client": checkrequest_blob_client,
+                "container": cr_container,
+                "bytes": cr_bytes
+            }
+        ]
+
+        for upload in upload_list:
+            blob_client: BlobClient = upload.get("client")
+            container_client: ContainerClient = upload.get("container")
+            r_bytes: bytes = upload.get("bytes")
+            try:
+                blob_client.upload_blob(r_bytes, overwrite=True)
+            except ResourceNotFoundError:
+                container_client.create_container()
+                blob_client.upload_blob(r_bytes, overwrite=True)
+
+    return attachment_pairs
+
+async def return_mail(attachment_pairs: List[Dict[str,Any]], message_info: dict):
+    attachments: List[Attachment] = []
+    for pair in attachment_pairs:
+        invoice_obj: Dict = pair.get("invoice")
+        inv_name = invoice_obj.get("blob_name")
+        inv_bytes: bytes = invoice_obj.get("bytes")
+
+        cr_obj: Dict = pair.get("check_request")
+        cr_name = cr_obj.get("blob_name")
+        cr_bytes: bytes = cr_obj.get("bytes")
+
+        inv_attachment = FileAttachment(
+            odata_type= "#microsoft.graph.fileAttachment",
+            name= inv_name,
+            content_type= "application/pdf",
+            content_bytes= inv_bytes
         )
-        checkrequest_blob_client = BlobClient.from_connection_string(
-            conn_str=os.environ["BLOB_CONNECTION_STRING"],
-            container_name=f"{sender}-invoices-raw",
-            blob_name=blob_name
+        cr_attachment = FileAttachment(
+            odata_type= "#microsoft.graph.fileAttachment",
+            name= cr_name,
+            content_type= "application/pdf",
+            content_bytes= cr_bytes
         )
+        attachments.append(inv_attachment)
+        attachments.append(cr_attachment)
 
-        invoice_blob_client.upload_blob(stream, overwrite=True)
-        checkrequest_blob_client.upload_blob(check_rq_buffer, overwrite=True)
-
-    return [invoices,check_requests]
-
-async def return_mail(attachments: list, message_info: dict):
-    graph_client = await get_graph_client()
-    request_body = SendMailPostRequestBody(
+    request_body = ReplyPostRequestBody(
         message = Message(
-            subject = f"Check Request:{message_info.get("subject")}",
+            subject = f"Check Request(s):{message_info.get("subject")}",
             body = ItemBody(
                 content_type= BodyType.Text,
                 content = "Please review the Check Request for Approval."
@@ -415,13 +511,12 @@ async def return_mail(attachments: list, message_info: dict):
                     ),
                 ),
             ],
-            attachments = [
-                FileAttachment(
-                    
-                )
-            ]
+            attachments = attachments,
+            has_attachments=True
         )
     )
+
+    return request_body
 
 
 # @app.queue_trigger(arg_name="azqueue", queue_name="invoices",
