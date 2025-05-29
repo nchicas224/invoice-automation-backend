@@ -126,8 +126,8 @@ async def validate_clientState(req: func.HttpRequest) -> Dict[str,List[Dict[str,
             return func.HttpResponse(status_code=400)
         try:
             for note in body.get("value",[]):
-                if note.get("ClientState"):
-                    clientState = note["ClientState"]
+                if note.get("clientState"):
+                    clientState = note["clientState"]
                     keyvault_client = await get_keyvault_client()
                     secret = await keyvault_client.get_secret("client-state-secret")
                     sub_expiry_raw = note["subscriptionExpirationDateTime"]
