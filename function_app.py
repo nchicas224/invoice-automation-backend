@@ -404,7 +404,8 @@ async def process_message(message: Message) -> dict:
 
 async def upload_to_blob(message_info: dict):
     attachments = message_info.get("attachments")
-    sender = message_info.get("sender")
+    sender_info: Dict[str,Dict] = message_info.get("sender")
+    sender = sender_info.get("emailAddress").get("address")
 
     invoice_container_name=f"{sender}-invoices-raw"
     cr_container_name=f"{sender}-checkRequest-raw"
