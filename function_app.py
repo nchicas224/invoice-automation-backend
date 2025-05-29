@@ -91,7 +91,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     except Exception as e:
         logging.error(f"Failed to process invoice(s): {e}")
         logging.error(f"Discarding notification...")
-        return
+        return func.HttpResponse(status_code=200)
 
     # Return Accepted -> Processing status to Graph API
     return func.HttpResponse(status_code=202)
