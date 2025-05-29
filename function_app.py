@@ -373,9 +373,9 @@ async def start(body: Dict[str,List[Dict[str,Any]]]) -> None:
         logging.error(v)
         return
     
-    attachments_pairs: List[Dict[str,Any]] = upload_to_blob(message_info=message_info)
+    attachments_pairs: List[Dict[str,Any]] = await upload_to_blob(message_info=message_info)
 
-    request_body: ReplyPostRequestBody = return_mail(attachment_pairs=attachments_pairs, message_info=message_info)
+    request_body: ReplyPostRequestBody = await return_mail(attachment_pairs=attachments_pairs, message_info=message_info)
 
     try:
         await req_builder.reply.post(body=request_body)
