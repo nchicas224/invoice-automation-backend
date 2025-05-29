@@ -66,11 +66,19 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
     initialize_logger()
 
     # Validate ClientState
-    body = await validate_clientState(req) ## IMPLEMENT TRY LOGIC
-
+    try:
+        body = await validate_clientState(req) ## IMPLEMENT TRY LOGIC
+    except Exception as e:
+        logging.error(e)
+        return
+    
     # Validate Subscription
-    await validate_subscription(body) ## IMPLEMENT TRY LOGIC
+    try:
+        await validate_subscription(body) ## IMPLEMENT TRY LOGIC
+    except Exception as e:
+        logging.error(e)
 
+    # Start processes
     try:
         await start(body=body)
     except Exception as e:
