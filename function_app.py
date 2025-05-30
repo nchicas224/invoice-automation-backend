@@ -23,8 +23,8 @@ from msgraph.generated.models.body_type import BodyType
 from msgraph.generated.models.recipient import Recipient
 from msgraph.generated.models.email_address import EmailAddress
 from msgraph.generated.models.attachment import Attachment
+from msgraph.generated.models.attachment_collection_response import AttachmentCollectionResponse
 from msgraph.generated.models.file_attachment import FileAttachment
-from kiota_abstractions.base_request_configuration import RequestConfiguration
 from azure.functions import HttpResponse
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.cosmos import CosmosClient, ContainerProxy, DatabaseProxy, CosmosDict
@@ -366,18 +366,15 @@ async def start(body: Dict[str,List[Dict[str,Any]]]) -> None:
 
     req_builder: MessageItemRequestBuilder = graph_client.users.by_user_id(
         os.environ["INVOICES_MAILBOX_ID"]).messages.by_message_id(message_id=message_id)
-
-    query_builder = MessageItemRequestBuilder.MessageItemRequestBuilderGetQueryParameters(expand=["attachments"])
-    config = RequestConfiguration(query_parameters=query_builder)
     
-    message = await req_builder.get(config)
+    message = await req_builder.get()
     try:
         message_info = await process_message(message)
     except ValueError as v:
         logging.error(v)
         return
     
-    attachments_pairs: List[Dict[str,Any]] = await upload_to_blob(message_info=message_info)
+    attachments_pairs: List[Dict[str,Any]] = await upload_to_blob(message_info=message_info, req_builder=req_builder)
 
     request_body: ReplyPostRequestBody = await return_mail(attachment_pairs=attachments_pairs, message_info=message_info)
 
@@ -391,7 +388,6 @@ async def start(body: Dict[str,List[Dict[str,Any]]]) -> None:
 async def process_message(message: Message) -> dict:
     
     if message.has_attachments:
-        
         message_info = {
             "message": message,
             "id": message.id,
@@ -400,15 +396,13 @@ async def process_message(message: Message) -> dict:
             "cc": message.cc_recipients,
             "body": message.body,
             "subject": message.subject,
-            "attachments": message.attachments
         }
-        logging.warning(f"message.attachments={message.attachments}")
         return message_info
     else:
         raise ValueError("Message does not have attachments, skipping processing...")
 
-async def upload_to_blob(message_info: dict):
-    attachments: List[Attachment] = message_info.get("attachments")
+async def upload_to_blob(message_info: dict, req_builder: MessageItemRequestBuilder):
+    attachments: AttachmentCollectionResponse = await req_builder.attachments.get()
     sender: str = message_info.get("sender")
 
     container_name_clean = sender.lower().split("@")[0]
@@ -431,6 +425,7 @@ async def upload_to_blob(message_info: dict):
     attachment_pairs = []
 
     logging.warning(f"Attachments={attachments}")
+    return
 
     for obj in attachments:
         with open(obj, "rb") as f:
