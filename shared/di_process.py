@@ -14,6 +14,7 @@ def get_invoice_fields(stream: bytes):
     document_intelligence_client = DocumentIntelligenceClient(endpoint=endpoint, credential=AzureKeyCredential(key))
     try:
         pdf_bytes = BytesIO(stream)
+        pdf_bytes.seek(0)
         invoice = document_intelligence_client.begin_analyze_document("prebuilt-invoice", pdf_bytes, locale="en-US")
         receipt = document_intelligence_client.begin_analyze_document("prebuilt-receipt", pdf_bytes, locale="en-US")
         try:

@@ -1,5 +1,5 @@
 
-import os, logging, json, uuid
+import os, logging, json, uuid, base64
 logging.info("function_app.py loaded!")
 import secrets
 #import HelperScripts as hs
@@ -438,7 +438,9 @@ async def upload_to_blob(message_info: dict, req_builder: MessageItemRequestBuil
     attachment_pairs = []
     for pdf in attachments:
         inv_name = pdf.get("name")
-        inv_bytes: bytes = pdf.get("bytes")
+        b64_inv_bytes: bytes = pdf.get("bytes")
+        inv_bytes: bytes = base64.b64decode(b64_inv_bytes)
+
         logging.warning(f"PDF Raw Bytes: {inv_bytes}")
 
         ai_results = get_invoice_fields(inv_bytes)
