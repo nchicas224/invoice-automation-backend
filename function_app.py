@@ -366,7 +366,10 @@ async def start(body: Dict[str,List[Dict[str,Any]]]) -> None:
     req_builder: MessageItemRequestBuilder = graph_client.users.by_user_id(
         os.environ["INVOICES_MAILBOX_ID"]).messages.by_message_id(message_id=message_id)
 
-    message = await req_builder.get()
+    query_builder = MessageItemRequestBuilder.MessageItemRequestBuilderGetQueryParameters(expand=["attachments"])
+    config = MessageItemRequestBuilder.MessageItemRequestBuilderGetRequestConfiguration(query_parameters=query_builder)
+    
+    message = await req_builder.get(config)
     try:
         message_info = await process_message(message)
     except ValueError as v:
@@ -387,6 +390,7 @@ async def start(body: Dict[str,List[Dict[str,Any]]]) -> None:
 async def process_message(message: Message) -> dict:
     
     if message.has_attachments:
+        
         message_info = {
             "message": message,
             "id": message.id,
