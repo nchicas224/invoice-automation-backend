@@ -397,13 +397,13 @@ async def process_message(message: Message) -> dict:
             "subject": message.subject,
             "attachments": message.attachments
         }
-
+        logging.warning(f"message.attachments={message.attachments}")
         return message_info
     else:
         raise ValueError("Message does not have attachments, skipping processing...")
 
 async def upload_to_blob(message_info: dict):
-    attachments = message_info.get("attachments")
+    attachments: List[Attachment] = message_info.get("attachments")
     sender: str = message_info.get("sender")
 
     container_name_clean = sender.lower().split("@")[0]
