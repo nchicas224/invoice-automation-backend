@@ -425,6 +425,8 @@ async def upload_to_blob(message_info: dict):
 
     attachment_pairs = []
 
+    logging.warning(f"Attachments={attachments}")
+
     for obj in attachments:
         with open(obj, "rb") as f:
             inv_bytes = f.read()
