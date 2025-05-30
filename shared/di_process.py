@@ -5,7 +5,7 @@ from azure.ai.documentintelligence.models import AnalyzeResult
 
 def get_invoice_fields(stream: bytes):
     if not (stream):
-        return "Stream was empty!"
+        raise "Stream was empty!"
     
     endpoint = os.environ["DI_ENDPOINT"]
     key = os.environ["DI_API_KEY"] ## ADD THESE TO AZURE ENV
@@ -21,9 +21,9 @@ def get_invoice_fields(stream: bytes):
             results = {"invoiceAi": invoice_results, "receiptAi": receipt_results}
             return results
         except KeyboardInterrupt as k:
-            return f"Document AI failed: {k}"
+            raise f"Document AI failed: {k}"
     except Exception as e:
-        return f"Document AI failed: {e}"
+        raise f"Document AI failed: {e}"
 
 # def main():
 #     stream = "."

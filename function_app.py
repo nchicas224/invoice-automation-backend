@@ -438,7 +438,7 @@ async def upload_to_blob(message_info: dict, req_builder: MessageItemRequestBuil
     attachment_pairs = []
     for pdf in attachments:
         inv_name = pdf.get("name")
-        inv_bytes = pdf.get("bytes")
+        inv_bytes: bytes = pdf.get("bytes")
 
         ai_results = get_invoice_fields(inv_bytes)
         invoice_info = await process_ai_results(ai_results)
