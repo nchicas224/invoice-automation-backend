@@ -404,7 +404,7 @@ async def process_message(message: Message) -> dict:
 async def upload_to_blob(message_info: dict, req_builder: MessageItemRequestBuilder):
     attachment_return: AttachmentCollectionResponse = await req_builder.attachments.get()
 
-    attachments = [Dict]
+    attachments = [Dict[str,Any]]
     for attach in attachment_return.value:
         if not isinstance(attach, FileAttachment):
             raise ValueError("ItemAttachment found: FileAttachment needed.")
