@@ -7,7 +7,7 @@ def get_invoice_fields(stream: bytes):
     if not (stream):
         return "Stream was empty!"
     
-    endpoint = os.environ["DI_"]
+    endpoint = os.environ["DI_ENDPOINT"]
     key = os.environ["DI_API_KEY"] ## ADD THESE TO AZURE ENV
 
     document_intelligence_client = DocumentIntelligenceClient(endpoint=endpoint, credential=AzureKeyCredential(key))
