@@ -402,7 +402,17 @@ async def process_message(message: Message) -> dict:
         raise ValueError("Message does not have attachments, skipping processing...")
 
 async def upload_to_blob(message_info: dict, req_builder: MessageItemRequestBuilder):
-    attachments: AttachmentCollectionResponse = await req_builder.attachments.get()
+    attachment_return: AttachmentCollectionResponse = await req_builder.attachments.get()
+
+    attachments = [Dict]
+    for attach in attachment_return.value:
+        if not isinstance(attach, FileAttachment):
+            raise ValueError("ItemAttachment found: FileAttachment needed.")
+        if not attach.content_type == "'application/pdf'":
+            raise ValueError("Content Type is not PDF")
+        attachment: Dict = {"name": attach.name, "bytes": attach.content_bytes}
+        attachments.append(attachment)
+        
     sender: str = message_info.get("sender")
 
     container_name_clean = sender.lower().split("@")[0]
@@ -423,13 +433,9 @@ async def upload_to_blob(message_info: dict, req_builder: MessageItemRequestBuil
             pass
 
     attachment_pairs = []
-
-    logging.warning(f"Attachments={attachments}")
-    return
-
-    for obj in attachments:
-        with open(obj, "rb") as f:
-            inv_bytes = f.read()
+    for pdf in attachments:
+        inv_name = pdf.get("name")
+        inv_bytes = pdf.get("bytes")
 
         ai_results = get_invoice_fields(inv_bytes)
         invoice_info = await process_ai_results(ai_results)
@@ -439,8 +445,8 @@ async def upload_to_blob(message_info: dict, req_builder: MessageItemRequestBuil
 
         invoice_id = invoice_fields.get("InvoiceId")
         vendor_name = invoice_fields.get("VendorName")
-        invoice_blob_name = f"Invoice_{invoice_id}_{vendor_name}.pdf"
-        cr_blob_name = f"Check_Request_{invoice_id}_{vendor_name}.pdf"
+        invoice_blob_name = f"invoice_{inv_name}.pdf"
+        cr_blob_name = f"check_request_{inv_name}.pdf"
 
         check_rq_buffer = BytesIO()
         writer: PdfWriter = fillout_form(invoice_fields=invoice_fields, table_fields=table_fields)
