@@ -531,7 +531,7 @@ async def return_mail(attachment_pairs: List[Dict[str,Any]], message_info: dict)
 
     request_body = ReplyPostRequestBody(
         message = Message(
-            subject = f"Check Request(s):{message_info.get("subject")}",
+            subject = f"Check Request(s): {message_info.get("subject")}",
             body = ItemBody(
                 content_type= BodyType.Text,
                 content = "Please review the Check Request for Approval."
