@@ -16,6 +16,7 @@ def get_invoice_fields(stream: bytes):
         pdf_bytes = BytesIO(stream)
         pdf_bytes.seek(0)
         invoice = document_intelligence_client.begin_analyze_document("prebuilt-invoice", pdf_bytes, locale="en-US")
+        pdf_bytes.seek(0)
         receipt = document_intelligence_client.begin_analyze_document("prebuilt-receipt", pdf_bytes, locale="en-US")
         try:
             invoice_results: AnalyzeResult = invoice.result()
