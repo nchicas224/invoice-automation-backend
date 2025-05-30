@@ -492,7 +492,7 @@ async def upload_to_blob(message_info: dict, req_builder: MessageItemRequestBuil
         ]
 
         for upload in upload_list:
-            blob_client: BlobClient = upload.get("client")
+            blob_client: BlobClient = upload.get("blob_client")
             container_client: ContainerClient = upload.get("container")
             r_bytes: bytes = upload.get("bytes")
             try:
