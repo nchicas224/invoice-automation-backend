@@ -408,7 +408,7 @@ async def upload_to_blob(message_info: dict, req_builder: MessageItemRequestBuil
     for attach in attachment_return.value:
         if not isinstance(attach, FileAttachment):
             raise ValueError("ItemAttachment found: FileAttachment needed.")
-        if not attach.content_type == "'application/pdf'":
+        if not attach.content_type == "application/pdf":
             raise ValueError("Content Type is not PDF")
         attachment: Dict = {"name": attach.name, "bytes": attach.content_bytes}
         attachments.append(attachment)
