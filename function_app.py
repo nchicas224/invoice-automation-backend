@@ -24,6 +24,7 @@ from msgraph.generated.models.recipient import Recipient
 from msgraph.generated.models.email_address import EmailAddress
 from msgraph.generated.models.attachment import Attachment
 from msgraph.generated.models.file_attachment import FileAttachment
+from kiota_abstractions.base_request_configuration import RequestConfiguration
 from azure.functions import HttpResponse
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.cosmos import CosmosClient, ContainerProxy, DatabaseProxy, CosmosDict
@@ -367,7 +368,7 @@ async def start(body: Dict[str,List[Dict[str,Any]]]) -> None:
         os.environ["INVOICES_MAILBOX_ID"]).messages.by_message_id(message_id=message_id)
 
     query_builder = MessageItemRequestBuilder.MessageItemRequestBuilderGetQueryParameters(expand=["attachments"])
-    config = MessageItemRequestBuilder.MessageItemRequestBuilderGetRequestConfiguration(query_parameters=query_builder)
+    config = RequestConfiguration(query_parameters=query_builder)
     
     message = await req_builder.get(config)
     try:
