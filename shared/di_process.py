@@ -1,4 +1,5 @@
 import os
+from io import BytesIO
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeResult
@@ -12,7 +13,7 @@ def get_invoice_fields(stream: bytes):
 
     document_intelligence_client = DocumentIntelligenceClient(endpoint=endpoint, credential=AzureKeyCredential(key))
     try:
-        pdf_bytes = stream
+        pdf_bytes = BytesIO(stream)
         invoice = document_intelligence_client.begin_analyze_document("prebuilt-invoice", pdf_bytes, locale="en-US")
         receipt = document_intelligence_client.begin_analyze_document("prebuilt-receipt", pdf_bytes, locale="en-US")
         try:
@@ -22,7 +23,7 @@ def get_invoice_fields(stream: bytes):
             return results
         except KeyboardInterrupt as k:
             raise f"Document AI failed: {k}"
-    except Exception as e:
+    except BaseException as e:
         raise f"Document AI failed: {e}"
 
 # def main():
