@@ -95,7 +95,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(status_code=200)
 
     # Return Accepted -> Processing status to Graph API
-    return func.HttpResponse(status_code=202)
+    return func.HttpResponse(status_code=200)
 
 #Subscription Timer Trigger Function
 @app.function_name(name="SubscriptionRenewalTimer")
