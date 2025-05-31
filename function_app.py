@@ -441,7 +441,7 @@ async def upload_to_blob(message_info: dict, req_builder: MessageItemRequestBuil
         b64_inv_bytes: bytes = pdf.get("bytes")
         inv_bytes: bytes = base64.b64decode(b64_inv_bytes)
 
-        logging.warning(f"PDF Raw Bytes: {inv_bytes}")
+        #logging.warning(f"PDF Raw Bytes: {inv_bytes}")
 
         ai_results = get_invoice_fields(inv_bytes)
         invoice_info = await process_ai_results(ai_results)
