@@ -82,6 +82,7 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
        check = await validate_subscription(body)
        if isinstance(check, HttpResponse):
            return check
+       logging.info("Subscription validated, failsafe passed.")
     except Exception as e:
         logging.exception(e)
         return func.HttpResponse(status_code=500, body="Failed to Validate Subscription")
@@ -163,6 +164,9 @@ async def validate_subscription(body: Dict[str,List[Dict[str,Any]]]): ### NEED T
         if not isinstance(value_list,list) or not value_list:
             raise ValueError("Missing or empty 'value' array.")
 
+        logging.warning(f"ReqBody: {body}")
+        logging.warning(f"ValueList: {value_list}")
+        
         first = value_list[0]
         sub_id = first.get("subscriptionId")
         sub_expiry = first.get("subscriptionExpirationDateTime")
@@ -182,7 +186,8 @@ async def validate_subscription(body: Dict[str,List[Dict[str,Any]]]): ### NEED T
         await update_db_subscription(creation_results)
 
 async def create_subscription(**kwargs) -> dict:
-    ## CALL DB FOR LATEST SUBSCRIPTION (DB SHOULD ONLY STORE THE CURRENT ACTIVE DB) --> MAYBE ARCHIVE THE OLD IF NEW CREATED
+    logging.info("Creating new subscription...")
+
     db_client = get_db_client()
     sub_id = kwargs.get("sub_id")
     cosmos_container = db_client.get_container_client("Subscriptions")
@@ -248,6 +253,8 @@ async def create_subscription(**kwargs) -> dict:
         }
 
 async def update_db_subscription(creation_results: dict): ### NEED TO UNBLOAT THIS FUNCTION
+    logging.info("Updating subscriptions in DB...")
+
     db_client = get_db_client()
     cosmos_container = db_client.get_container_client("Subscriptions")
     result_id = creation_results["result_id"]
