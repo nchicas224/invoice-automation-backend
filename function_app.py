@@ -418,8 +418,10 @@ async def upload_to_blob(message_info: dict, req_builder: MessageItemRequestBuil
         logging.info(f"Attachment Info: name:{attach.name}, content_type:{attach.content_type}, size:{attach.size}")
         if not isinstance(attach, FileAttachment):
             logging.warning("ItemAttachment found: FileAttachment needed.")
+            continue
         if not attach.content_type == "application/pdf":
             logging.warning(f"Content Type is not PDF: {attach.content_type}")
+            continue
         attachment = {
             "name": attach.name,
             "bytes": attach.content_bytes
