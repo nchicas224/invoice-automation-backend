@@ -49,7 +49,7 @@ app = func.FunctionApp()
     route="NotifyNewMail",
     methods=["GET","POST"],
     auth_level=func.AuthLevel.ANONYMOUS)
-@app.durable_client_input(client_name="client")
+#@app.durable_client_input(client_name="client")
 async def notify_new_mail(req: func.HttpRequest, client: df.DurableOrchestrationClient) -> func.HttpResponse:
     # Graph API handshake
     if req.params.get("validationToken"):
