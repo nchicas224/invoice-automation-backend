@@ -412,20 +412,22 @@ async def process_message(message: Message) -> dict:
 async def upload_to_blob(message_info: dict, req_builder: MessageItemRequestBuilder):
     attachment_return: AttachmentCollectionResponse = await req_builder.attachments.get()
 
-    logging.warning(f"Attachments in message: {attachment_return}")
+    logging.warning(f"Number of attachments in message: {len(attachment_return.value)}")
     attachments: List[Dict[str,Any]] = [] 
     for attach in attachment_return.value:
+        logging.info(f"Attachment Info: name:{attach.name}, content_type:{attach.content_type}, size:{attach.size}")
         if not isinstance(attach, FileAttachment):
-            raise ValueError("ItemAttachment found: FileAttachment needed.")
+            logging.warning("ItemAttachment found: FileAttachment needed.")
         if not attach.content_type == "application/pdf":
-            logging.warning(f"Content Type: {attach.content_type}")
-            raise ValueError("Content Type is not PDF")
+            logging.warning(f"Content Type is not PDF: {attach.content_type}")
         attachment = {
             "name": attach.name,
             "bytes": attach.content_bytes
             }
         attachments.append(attachment)
         
+    if len(attachments) == 0:
+        raise ValueError("No credible attachments found.")    
     sender: str = message_info.get("sender")
 
     container_name_clean = sender.lower().split("@")[0]
