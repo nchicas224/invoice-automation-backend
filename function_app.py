@@ -49,8 +49,8 @@ app = func.FunctionApp()
     route="NotifyNewMail",
     methods=["GET","POST"],
     auth_level=func.AuthLevel.ANONYMOUS)
-#@app.durable_client_input(client_name="client")
-async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
+@app.durable_client_input(client_name="client")
+async def notify_new_mail(req: func.HttpRequest, client: df.DurableOrchestrationClient) -> func.HttpResponse:
     # Graph API handshake
     if req.params.get("validationToken"):
         logging.warning("[notify_new_mail]:Checking Validation Token...")
@@ -88,15 +88,16 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(status_code=500, body="Failed to Validate Subscription")
 
     # Start processes
-    try:
-        await start(body=body)
-    except Exception as e:
-        logging.exception(f"Failed to process invoice(s): {e}")
-        logging.error(f"Discarding notification...")
-        return func.HttpResponse(status_code=200)
+    for note in body.get("value",[]):
+        try:
+            await start(notif=note)
+        except Exception as e:
+            logging.exception(f"Failed to process invoice(s): {e}")
+            logging.error(f"Discarding notification...")
+            return func.HttpResponse(status_code=200)
 
     # Return Accepted -> Processing status to Graph API
-    return func.HttpResponse(status_code=200)
+    return func.HttpResponse(status_code=202)
 
 #Subscription Timer Trigger Function
 @app.function_name(name="SubscriptionRenewalTimer")
@@ -119,7 +120,7 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
         logging.warning("Failed to upsert Subscription: 'result' or 'application.id' was not found.")
     logging.info(f"Renewal timer trigger successfully ran at: {utc_timestamp}")    
 
-async def validate_clientState(req: func.HttpRequest) -> Dict[str,List[Dict[str,Any]]]: 
+async def validate_clientState(req: func.HttpRequest) -> Dict[str,List[Dict[str,Any]]] | HttpResponse: 
     logging.info("[notify_new_mail]:Validating ClientState...")
     try:
         body: Dict[str,List[Dict[str,Any]]] = req.get_json()
@@ -361,11 +362,11 @@ async def update_db_subscription(creation_results: dict): ### NEED TO UNBLOAT TH
         logging.warning("New odata link page...")
         page = await builder.with_url(page.odata_next_link).get()
     
-async def start(body: Dict[str,List[Dict[str,Any]]]) -> None:
+async def start(notif: Dict[str,Any]) -> None:
     graph_client = await get_graph_client()
 
     try:
-        message_id = body.get("value")[0].get("resourceData").get("id")
+        message_id = notif.get("resourceData").get("id")
         logging.info(f"Request Message ID: {message_id}")
     except Exception as e:
         logging.error(f"Message ID was not found: {e}")
@@ -411,6 +412,7 @@ async def process_message(message: Message) -> dict:
 async def upload_to_blob(message_info: dict, req_builder: MessageItemRequestBuilder):
     attachment_return: AttachmentCollectionResponse = await req_builder.attachments.get()
 
+    logging.warning(f"Attachments in message: {attachment_return}")
     attachments: List[Dict[str,Any]] = [] 
     for attach in attachment_return.value:
         if not isinstance(attach, FileAttachment):
