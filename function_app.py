@@ -41,7 +41,8 @@ from shared.process_ai_results import process_ai_results
 from shared.populate_checkform import fillout_form
 from shared.azure_monitor import failsafe_counter, tracer, meter, initialize_logger
 
-app = func.FunctionApp()
+#app = func.FunctionApp()
+app = df.DFApp()
 
 # Webhook Notification for new emails landing in invoices@lcf
 @app.function_name(name="NotifyNewMail")
