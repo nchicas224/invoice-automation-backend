@@ -8,8 +8,8 @@
       }
     }, 
     "logLevel": {
-        "default": "Information",
-        "Function": "Information",
+        "default": "Debug",
+        "Function": "Debug",
         "DurableTask": "Debug",
         "DurableOrchestrationActivity": "Debug",
         "DurableOrchestrationWorker": "Debug",
