@@ -395,7 +395,7 @@ def start(context: df.DurableOrchestrationContext):
     
     message_and_req: dict = yield context.call_activity(
         name="GetMessage",
-        input=message_id
+        input_=message_id
     )
 
     message = message_and_req["message"]
@@ -404,7 +404,7 @@ def start(context: df.DurableOrchestrationContext):
     try:
         message_info: dict = yield context.call_activity(
             name="ProcessMessage",
-            input=message
+            input_=message
         )
     except ValueError as v:
         logging.error(v)
@@ -412,7 +412,7 @@ def start(context: df.DurableOrchestrationContext):
     
     attachments_pairs: List[Dict[str,Any]] = yield context.call_activity(
         name="HandleAttachments",
-        input={
+        input_={
             "req_builder": req_builder,
             "message_info": message_info
         }
@@ -420,7 +420,7 @@ def start(context: df.DurableOrchestrationContext):
 
     request_body: ReplyPostRequestBody = yield context.call_activity(
         name="DraftReply",
-        input={
+        input_={
             "attachment_pairs": attachments_pairs,
             "message_info": message_info
         }
@@ -428,7 +428,7 @@ def start(context: df.DurableOrchestrationContext):
 
     reply = yield context.call_activity(
         name="SendReply",
-        input={"request_body": request_body, "req_builder": req_builder}
+        input_={"request_body": request_body, "req_builder": req_builder}
     )
 
     return reply
