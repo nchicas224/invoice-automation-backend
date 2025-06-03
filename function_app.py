@@ -425,7 +425,7 @@ def start(context: df.DurableOrchestrationContext):
 
     return reply
 
-@app.funciton_name("GetMessage")
+@app.function_name("GetMessage")
 @app.activity_trigger(input_name="message_id")
 async def get_message(message_id: str) -> dict:
     graph_client = await get_graph_client()
