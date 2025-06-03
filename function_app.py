@@ -98,7 +98,7 @@ async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestratio
         message_id = note.get("resourceData").get("id")
         instance_id = message_id
         existing = await starter.get_status(instance_id=instance_id)
-        if existing is None:
+        if existing.custom_status is None:
             try:
                 await starter.start_new(
                     orchestration_function_name="StartInstance",
