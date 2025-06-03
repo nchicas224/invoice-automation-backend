@@ -53,6 +53,7 @@ app = df.DFApp()
 @app.durable_client_input(client_name="starter")
 async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestrationClient) -> func.HttpResponse:
     # Graph API handshake
+    logging.info(f"Req: {req}")
     if req.params.get("validationToken"):
         logging.warning("[notify_new_mail]:Checking Validation Token...")
         if req.params["validationToken"]:
