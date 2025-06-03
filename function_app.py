@@ -49,8 +49,8 @@ app = func.FunctionApp()
     route="NotifyNewMail",
     methods=["GET","POST"],
     auth_level=func.AuthLevel.ANONYMOUS)
-#@app.durable_client_input(client_name="client")
-async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
+@app.durable_client_input(client_name="client")
+async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestrationClient) -> func.HttpResponse:
     # Graph API handshake
     if req.params.get("validationToken"):
         logging.warning("[notify_new_mail]:Checking Validation Token...")
@@ -89,12 +89,23 @@ async def notify_new_mail(req: func.HttpRequest) -> func.HttpResponse:
 
     # Start processes
     for note in body.get("value",[]):
-        try:
-            await start(notif=note)
-        except Exception as e:
-            logging.exception(f"Failed to process invoice(s): {e}")
-            logging.error(f"Discarding notification...")
-            return func.HttpResponse(status_code=200)
+        message_id = note.get("resourceData").get("id")
+        instance_id = message_id
+        existing = await starter.get_status(instance_id=instance_id)
+        if existing is None:
+            try:
+                await starter.start_new(
+                    orchestration_function_name="StartInstance",
+                    instance_id=instance_id,
+                    client_input={"message_id": message_id}
+                )
+                logging.info(f"Instance ({instance_id}) starting...")
+            except Exception as e:
+                logging.exception(f"Failed to process invoice(s): {e}")
+                logging.error(f"Discarding notification...")
+                return func.HttpResponse(status_code=200)
+        else:
+            logging.info(f"Instance ({instance_id}) already in progress: {existing}")
 
     # Return Accepted -> Processing status to Graph API
     return func.HttpResponse(status_code=202)
@@ -361,38 +372,72 @@ async def update_db_subscription(creation_results: dict): ### NEED TO UNBLOAT TH
             break
         logging.warning("New odata link page...")
         page = await builder.with_url(page.odata_next_link).get()
-    
-async def start(notif: Dict[str,Any]) -> None:
-    graph_client = await get_graph_client()
+
+@app.function_name(name="StartInstance")
+@app.orchestration_trigger(context_name="context")
+def start(context: df.DurableOrchestrationContext):
+    input_data = context.get_input()
 
     try:
-        message_id = notif.get("resourceData").get("id")
+        message_id = input_data["message_id"]
         logging.info(f"Request Message ID: {message_id}")
     except Exception as e:
         logging.error(f"Message ID was not found: {e}")
         return
+    
+    message_and_req: dict = yield context.call_activity(
+        name="GetMessage",
+        input=message_id
+    )
+
+    message = message_and_req["message"]
+    req_builder = message_and_req["req_builder"]
+    
+    try:
+        message_info: dict = yield context.call_activity(
+            name="ProcessMessage",
+            input=message
+        )
+    except ValueError as v:
+        logging.error(v)
+        return
+    
+    attachments_pairs: List[Dict[str,Any]] = yield context.call_activity(
+        name="HandleAttachments",
+        input={
+            "req_builder": req_builder,
+            "message_info": message_info
+        }
+    )
+
+    request_body: ReplyPostRequestBody = yield context.call_activity(
+        name="DraftReply",
+        input={
+            "attachment_pairs": attachments_pairs,
+            "message_info": message_info
+        }
+    )
+
+    reply = yield context.call_activity(
+        name="SendReply",
+        input={"request_body": request_body, "req_builder": req_builder}
+    )
+
+    return reply
+
+@app.funciton_name("GetMessage")
+@app.activity_trigger(input_name="message_id")
+async def get_message(message_id: str) -> dict:
+    graph_client = await get_graph_client()
 
     req_builder: MessageItemRequestBuilder = graph_client.users.by_user_id(
         os.environ["INVOICES_MAILBOX_ID"]).messages.by_message_id(message_id=message_id)
     
     message = await req_builder.get()
-    try:
-        message_info = await process_message(message)
-    except ValueError as v:
-        logging.error(v)
-        return
-    
-    attachments_pairs: List[Dict[str,Any]] = await upload_to_blob(message_info=message_info, req_builder=req_builder)
+    return {"message": message, "req_builder": req_builder}
 
-    request_body: ReplyPostRequestBody = await return_mail(attachment_pairs=attachments_pairs, message_info=message_info)
-
-    try:
-        await req_builder.reply.post(body=request_body)
-        logging.info("Reply Posted!")
-    except Exception as e:
-        logging.error(f"Failed to post reply: {e}")
-        return
-
+@app.function_name(name="ProcessMessage")
+@app.activity_trigger(input_name="message")
 async def process_message(message: Message) -> dict:
     
     if message.has_attachments:
@@ -409,7 +454,11 @@ async def process_message(message: Message) -> dict:
     else:
         raise ValueError("Message does not have attachments, skipping processing...")
 
-async def upload_to_blob(message_info: dict, req_builder: MessageItemRequestBuilder):
+@app.function_name(name="HandleAttachments")
+@app.activity_trigger(input_name="message_req_dict")
+async def upload_to_blob(message_req_dict: dict):
+    req_builder: MessageItemRequestBuilder = message_req_dict["req_builder"]
+    message_info: dict = message_req_dict["message_info"]
     attachment_return: AttachmentCollectionResponse = await req_builder.attachments.get()
 
     logging.warning(f"Number of attachments in message: {len(attachment_return.value)}")
@@ -517,7 +566,12 @@ async def upload_to_blob(message_info: dict, req_builder: MessageItemRequestBuil
 
     return attachment_pairs
 
-async def return_mail(attachment_pairs: List[Dict[str,Any]], message_info: dict):
+@app.function_name(name="DraftReply")
+@app.activity_trigger(input_name="reply_dict_info")
+async def return_mail(reply_dict_info: dict) -> ReplyPostRequestBody:
+    attachment_pairs: List[Dict[str,Any]] = reply_dict_info["attachment_pairs"]
+    message_info: dict = reply_dict_info["message_info"] 
+    
     attachments: List[Attachment] = []
     for pair in attachment_pairs:
         invoice_obj: Dict = pair.get("invoice")
@@ -564,6 +618,17 @@ async def return_mail(attachment_pairs: List[Dict[str,Any]], message_info: dict)
 
     return request_body
 
+@app.function_name(name="SendReply")
+@app.activity_trigger(input_name="reply_info")
+async def send_reply(reply_info: dict):
+    request_body: ReplyPostRequestBody = reply_info["request_body"]
+    req_builder: MessageItemRequestBuilder = reply_info["req_builder"]
+    
+    try:
+        await req_builder.reply.post(body=request_body)
+        logging.info("Reply Posted!")
+    except Exception as e:
+        logging.error(f"Failed to post reply: {e}")
 
 # @app.queue_trigger(arg_name="azqueue", queue_name="invoices",
 #                                connection="8043d5_STORAGE") 
