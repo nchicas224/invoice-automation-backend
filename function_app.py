@@ -28,7 +28,7 @@ from msgraph.generated.models.file_attachment import FileAttachment
 from azure.functions import HttpResponse
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.cosmos import CosmosClient, ContainerProxy, DatabaseProxy, CosmosDict
-from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosResourceNotFoundError
+from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosResourceNotFoundError, CosmosResourceExistsError
 from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
 from openai import AzureOpenAI
 from pypdf import PdfWriter
@@ -97,6 +97,11 @@ async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestratio
     for note in body.get("value",[]):
         message_id = note.get("resourceData").get("id")
         instance_id = message_id
+        
+        if not check_inflight(message_id):
+            logging.info(f"Message {message_id} is already claimed by another instance. Skipping...")
+            return func.HttpResponse(status_code=200)
+        
         existing = await starter.get_status(instance_id=instance_id)
         if existing.custom_status is None:
             try:
@@ -637,6 +642,19 @@ async def send_reply(reply_info: dict):
         logging.info("Reply Posted!")
     except Exception as e:
         logging.error(f"Failed to post reply: {e}")
+
+def check_inflight(message_id: str) -> bool:
+    db_client = get_db_client()
+    db_container = db_client.get_container_client("Messages")
+
+    try:
+        db_container.create_item({
+            "id": message_id,
+            "in_flight": "message"
+        })
+        return True
+    except CosmosResourceExistsError:
+        return False
 
 # @app.queue_trigger(arg_name="azqueue", queue_name="invoices",
 #                                connection="8043d5_STORAGE") 
