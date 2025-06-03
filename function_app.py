@@ -60,7 +60,7 @@ async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestratio
              return func.HttpResponse(req.params["validationToken"], status_code=200, mimetype="text/plain")
         else:
             logging.warning("[notify_new_mail]:Token validation failed.")
-            logging.warning(f"[notify_new_mail]:METHOD={req.method}, from User-Agent={req.headers.get("User-Agent")}")
+            logging.warning(f"[notify_new_mail]:METHOD={req.method}, from User-Agent={req.headers.get('User-Agent')}")
             return func.HttpResponse(status_code=404)
 
     if req.method != "POST":
@@ -69,19 +69,22 @@ async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestratio
     initialize_logger()
 
     # Validate ClientState
+    logging.info("Checking clientstate...")
     try:
         check = await validate_clientState(req)
-        if isinstance(check, (HttpResponse)):
+        if isinstance(check, (func.HttpResponse)):
             return check
         body = check
+        logging.info("Completed clientstate check...")
     except Exception:
         logging.exception("Unexpected error during ClientState Validation")
-        return func.HttpRequest(status_code=500, body="Server Error")
+        return func.HttpResponse(status_code=500, body="Server Error")
     
     # Validate Subscription
+    logging.info("Checking subscription...")
     try:
        check = await validate_subscription(body)
-       if isinstance(check, HttpResponse):
+       if isinstance(check, (func.HttpResponse)):
            return check
        logging.info("Subscription validated, failsafe passed.")
     except Exception as e:
@@ -89,6 +92,7 @@ async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestratio
         return func.HttpResponse(status_code=500, body="Failed to Validate Subscription")
 
     # Start processes
+    logging.info("Starting processes...")
     for note in body.get("value",[]):
         message_id = note.get("resourceData").get("id")
         instance_id = message_id
@@ -109,6 +113,7 @@ async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestratio
             logging.info(f"Instance ({instance_id}) already in progress: {existing}")
 
     # Return Accepted -> Processing status to Graph API
+    logging.info("Notification completed. Returning status: 'OK'")
     return func.HttpResponse(status_code=202)
 
 #Subscription Timer Trigger Function
