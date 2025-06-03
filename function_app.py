@@ -112,7 +112,7 @@ async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestratio
                 return func.HttpResponse(status_code=200)
         else:
             logging.info(f"Instance ({instance_id}) already in progress: {existing}")
-            logging.info(f"Status: {existing}")
+            logging.info(f"Status: {existing.custom_status} -> ID: {existing.instance_id}")
 
     # Return Accepted -> Processing status to Graph API
     logging.info("Notification completed. Returning status: 'OK'")
