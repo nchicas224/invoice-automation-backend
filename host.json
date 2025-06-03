@@ -8,12 +8,12 @@
       }
     }, 
     "logLevel": {
-        "default": "Debug",
-        "Function": "Debug",
-        "DurableTask": "Debug",
-        "DurableOrchestrationActivity": "Debug",
-        "DurableOrchestrationWorker": "Debug",
-        "DurableOrchestrationController": "Debug"
+        "default": "Information",
+        "Function": "Information",
+        "DurableTask": "Warning",
+        "DurableOrchestrationActivity": "Warning",
+        "DurableOrchestrationWorker": "Warning",
+        "DurableOrchestrationController": "Warning"
     }
   },
   "extensionBundle": {
