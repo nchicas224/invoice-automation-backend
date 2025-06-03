@@ -398,18 +398,10 @@ def start(context: df.DurableOrchestrationContext):
         logging.error(f"Message ID was not found: {e}")
         return
     
-    message_and_req: dict = yield context.call_activity(
-        name="GetMessage",
-        input_=message_id
-    )
-
-    message = message_and_req["message"]
-    req_builder = message_and_req["req_builder"]
-    
     try:
         message_info: dict = yield context.call_activity(
             name="ProcessMessage",
-            input_=message
+            input_=message_id
         )
     except ValueError as v:
         logging.error(v)
@@ -418,12 +410,11 @@ def start(context: df.DurableOrchestrationContext):
     attachments_pairs: List[Dict[str,Any]] = yield context.call_activity(
         name="HandleAttachments",
         input_={
-            "req_builder": req_builder,
             "message_info": message_info
         }
     )
 
-    request_body: ReplyPostRequestBody = yield context.call_activity(
+    attachments: List = yield context.call_activity(
         name="DraftReply",
         input_={
             "attachment_pairs": attachments_pairs,
@@ -433,26 +424,21 @@ def start(context: df.DurableOrchestrationContext):
 
     reply = yield context.call_activity(
         name="SendReply",
-        input_={"request_body": request_body, "req_builder": req_builder}
+        input_={"message_info": message_info, "attachments": attachments}
     )
 
-    return reply
+    return f"Instance for MessageId: {message_id} completed. {reply}"
 
-@app.function_name("GetMessage")
-@app.activity_trigger(input_name="message_id")
-async def get_message(message_id: str) -> dict:
+@app.function_name(name="ProcessMessage")
+@app.activity_trigger(input_name="message")
+async def process_message(message_id: str) -> dict:
     graph_client = await get_graph_client()
 
     req_builder: MessageItemRequestBuilder = graph_client.users.by_user_id(
         os.environ["INVOICES_MAILBOX_ID"]).messages.by_message_id(message_id=message_id)
     
     message = await req_builder.get()
-    return {"message": message, "req_builder": req_builder}
 
-@app.function_name(name="ProcessMessage")
-@app.activity_trigger(input_name="message")
-async def process_message(message: Message) -> dict:
-    
     if message.has_attachments:
         message_info = {
             "message": message,
@@ -468,10 +454,14 @@ async def process_message(message: Message) -> dict:
         raise ValueError("Message does not have attachments, skipping processing...")
 
 @app.function_name(name="HandleAttachments")
-@app.activity_trigger(input_name="message_req_dict")
-async def upload_to_blob(message_req_dict: dict):
-    req_builder: MessageItemRequestBuilder = message_req_dict["req_builder"]
-    message_info: dict = message_req_dict["message_info"]
+@app.activity_trigger(input_name="message_info")
+async def upload_to_blob(message_info: dict):
+    message_info: dict = message_info["message_info"]
+    graph_client = await get_graph_client()
+
+    req_builder: MessageItemRequestBuilder = graph_client.users.by_user_id(
+        os.environ["INVOICES_MAILBOX_ID"]).messages.by_message_id(message_id=message_info["id"])
+    
     attachment_return: AttachmentCollectionResponse = await req_builder.attachments.get()
 
     logging.warning(f"Number of attachments in message: {len(attachment_return.value)}")
@@ -581,7 +571,7 @@ async def upload_to_blob(message_req_dict: dict):
 
 @app.function_name(name="DraftReply")
 @app.activity_trigger(input_name="reply_dict_info")
-async def return_mail(reply_dict_info: dict) -> ReplyPostRequestBody:
+async def return_mail(reply_dict_info: dict) -> List:
     attachment_pairs: List[Dict[str,Any]] = reply_dict_info["attachment_pairs"]
     message_info: dict = reply_dict_info["message_info"] 
     
@@ -610,6 +600,19 @@ async def return_mail(reply_dict_info: dict) -> ReplyPostRequestBody:
         attachments.append(inv_attachment)
         attachments.append(cr_attachment)
 
+    return attachments
+
+@app.function_name(name="SendReply")
+@app.activity_trigger(input_name="reply_info")
+async def send_reply(reply_info: dict):
+    message_info: dict = reply_info["message_info"]
+    attachments = reply_info["attachments"]
+
+    graph_client = await get_graph_client()
+
+    req_builder: MessageItemRequestBuilder = graph_client.users.by_user_id(
+        os.environ["INVOICES_MAILBOX_ID"]).messages.by_message_id(message_id=message_info["id"])
+
     request_body = ReplyPostRequestBody(
         message = Message(
             subject = f"Check Request(s): {message_info.get("subject")}",
@@ -628,14 +631,6 @@ async def return_mail(reply_dict_info: dict) -> ReplyPostRequestBody:
             has_attachments=True
         )
     )
-
-    return request_body
-
-@app.function_name(name="SendReply")
-@app.activity_trigger(input_name="reply_info")
-async def send_reply(reply_info: dict):
-    request_body: ReplyPostRequestBody = reply_info["request_body"]
-    req_builder: MessageItemRequestBuilder = reply_info["req_builder"]
     
     try:
         await req_builder.reply.post(body=request_body)
