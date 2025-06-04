@@ -15,21 +15,24 @@ async def process_ai_results(results: dict[str, AnalyzeResult]):
                 # Now we are inside of the Items key and are looking at its value
                 # The value for the items key returns our table contents
                 # Meaning that we are now looking into the table contents
-                for row in value.value_array:
-                    # The for-loop variable here gives us back each row of the table
-                    table_items = {}
-                    for attribute, content in row.value_object.items():
-                        # Now we are iterating through the actual row (object)
-                        # Where the 'attribute' variable represents our key
-                        # and the 'content' variable represents its related value
-                        for content_field, content_value in content.items():
-                            # Now we are looking at the inner dictionary for each attribute
-                            # 'content_field' represents the key, 'content_value' represents its value
-                            if "content" in content_field:
-                                # if we reach the 'content_field' 'content', lets create a new key-value pair
-                                # for our dictionary that will hold only one table row
-                                table_items[attribute]=content_value
-                    table_fields.append(table_items)
+                if value.value_array:
+                    for row in value.value_array:
+                        # The for-loop variable here gives us back each row of the table
+                        table_items = {}
+                        if row.value_object:
+                            for attribute, content in row.value_object.items():
+                                # Now we are iterating through the actual row (object)
+                                # Where the 'attribute' variable represents our key
+                                # and the 'content' variable represents its related value
+                                if content:
+                                    for content_field, content_value in content.items():
+                                        # Now we are looking at the inner dictionary for each attribute
+                                        # 'content_field' represents the key, 'content_value' represents its value
+                                        if "content" in content_field:
+                                            # if we reach the 'content_field' 'content', lets create a new key-value pair
+                                            # for our dictionary that will hold only one table row
+                                            table_items[attribute]=content_value
+                            table_fields.append(table_items)
             else:
                 for field, dict_value in value.items():
                     if key == "InvoiceTotal" or key == "SubTotal":
