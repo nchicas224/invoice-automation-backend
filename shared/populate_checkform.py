@@ -29,7 +29,7 @@ def fillout_form(invoice_fields: dict, table_fields: list) -> PdfWriter:
                     
                     prefix = ""
                     if "Description" in item and item["Description"]:
-                        prefix = f"{item["Description"]}"
+                        prefix = f"{item['Description']}"
 
                     description = prefix + suffix
                     writer.update_page_form_field_values(
