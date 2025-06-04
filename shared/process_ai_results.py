@@ -76,7 +76,7 @@ async def process_ai_results(results: dict[str, AnalyzeResult]):
         sorted_conf = sorted(raw_conf_list, reverse=True)
         highest_conf = sorted_conf[0]
         for field in total_list:
-            if highest_conf == field.content:
+            if highest_conf == field.confidence:
                 invoice_fields["InvoiceTotal"] = field.content
 
     else:
