@@ -39,6 +39,7 @@ def fillout_form(invoice_fields: dict, table_fields: list) -> PdfWriter:
                 missing_attribute.replace("\'","\"")
                 print(missing_attribute)
                 invoice_fields[missing_attribute] = "Not Found"
+                print("Stuck in While loop?")
                 for e, i in invoice_fields.items():
                     if e == missing_attribute:
                         print(f"{e}: {i}")
