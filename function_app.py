@@ -441,7 +441,6 @@ async def process_message(message_id: str) -> dict:
 
     if message.has_attachments:
         message_info = {
-            "message": message,
             "id": message.id,
             "conversation_id": message.conversation_id,
             "sender": message.sender.email_address.address,
@@ -455,7 +454,7 @@ async def process_message(message_id: str) -> dict:
 
 @app.function_name(name="HandleAttachments")
 @app.activity_trigger(input_name="message_info")
-async def upload_to_blob(message_info: dict):
+async def upload_to_blob(message_info: dict) -> list:
     message_info: dict = message_info["message_info"]
     graph_client = await get_graph_client()
 
