@@ -23,18 +23,19 @@ def fillout_form(invoice_fields: dict, table_fields: list) -> PdfWriter:
                 i = -1
                 for item in table_fields:
                     i = i + 1
-                    amount = None
-                    if item["Amount"]:
-                        amount = f" for an amount of ${item["Amount"]}."
+                    amount = ""
+                    if item['Amount']:
+                        amount = f" for an amount of ${item['Amount']}."
                     writer.update_page_form_field_values(
                         page=page,
                         fields={
-                            f"Description {i}": f"{item["Description"]} {amount if amount else '.'}"
+                            f"Description {i}": f"{item["Description"]}{amount or '.'}"
                         }
                     )
 
                 field_check = True
             except KeyError as k:
+                print(k)
                 missing_attribute = str(k.args[0])
                 missing_attribute.replace("\'","\"")
                 print(missing_attribute)
