@@ -23,13 +23,19 @@ def fillout_form(invoice_fields: dict, table_fields: list) -> PdfWriter:
                 i = -1
                 for item in table_fields:
                     i = i + 1
-                    amount = ""
+                    suffix = ""
                     if "Amount" in item and item["Amount"]:
-                        amount = f" for an amount of ${item['Amount']}."
+                        suffix = f" for an amount of ${item['Amount']}."
+                    
+                    prefix = ""
+                    if "Description" in item and item["Description"]:
+                        prefix = f"{item["Description"]}"
+
+                    description = prefix + suffix
                     writer.update_page_form_field_values(
                         page=page,
                         fields={
-                            f"Description {i}": f"{item["Description"]}{amount or '.'}"
+                            f"Description {i}": f"{description}"
                         }
                     )
 

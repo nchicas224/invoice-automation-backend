@@ -37,10 +37,8 @@ async def process_ai_results(results: dict[str, AnalyzeResult]):
                     elif "content" in field:
                         invoice_fields[key] = dict_value
         for field, value in invoice_fields.items():
-            print("Stuck in for loop @ invoice_fields.items?")
             print(f"{field}: {value}")
         for row in table_fields:
-            print("Stuck in for loop @ table_fields?")
             print(row)
 
     try:
