@@ -1,4 +1,4 @@
-from azure.ai.documentintelligence.models import AnalyzeResult
+from azure.ai.documentintelligence.models import AnalyzeResult, DocumentField
 
 
 async def process_ai_results(results: dict[str, AnalyzeResult]):
@@ -44,7 +44,7 @@ async def process_ai_results(results: dict[str, AnalyzeResult]):
     except AttributeError:
         merchant = "Not Found"
     try:
-        total = receipt_result.documents[0].fields.get("Total").value_currency.amount
+        total = receipt_result.documents[0].fields.get("Total")
     except AttributeError:
         total = "Not Found"
     try:
@@ -54,8 +54,24 @@ async def process_ai_results(results: dict[str, AnalyzeResult]):
 
     if "VendorName" not in invoice_fields:
         invoice_fields["VendorName"] = merchant
-    if "InvoiceTotal" not in invoice_fields:
-        invoice_fields["InvoiceTotal"] = total
+
+    raw_conf_list = []
+    if "InvoiceTotal" in invoice_fields:
+        invT_conf = DocumentField(invoice_fields["InvoiceTotal"]).confidence
+        raw_conf_list.append(invT_conf)
+    if isinstance(total, DocumentField):
+        total_conf = total.confidence
+        raw_conf_list.append(total_conf)
+    if "SubTotal" in invoice_fields:
+        sub_conf = DocumentField(invoice_fields["SubTotal"]).confidence
+        raw_conf_list.append(sub_conf)
+
+    if len(raw_conf_list) >= 2:
+        sorted_conf = sorted(raw_conf_list, reverse=True)
+        invoice_fields["InvoiceTotal"] = sorted_conf[0]
+    else:
+        invoice_fields["InvoiceTotal"] = "Not Found"
+
     if "InvoiceDate" not in invoice_fields:
         invoice_fields["InvoiceDate"] = date
     if "InvoiceId" not in invoice_fields:
