@@ -58,20 +58,27 @@ async def process_ai_results(results: dict[str, AnalyzeResult]):
         invoice_fields["VendorName"] = merchant
 
     raw_conf_list = []
+    total_list: list[DocumentField] = []
     if "InvoiceTotal" in invoice_fields:
         invT_conf = DocumentField(invoice_fields["InvoiceTotal"]).confidence
         raw_conf_list.append(invT_conf)
+        total_list.append(invoice_fields["InvoiceTotal"])
     if isinstance(total, DocumentField):
         total_conf = total.confidence
         raw_conf_list.append(total_conf)
+        total_list.append(total)
     if "SubTotal" in invoice_fields:
         sub_conf = DocumentField(invoice_fields["SubTotal"]).confidence
         raw_conf_list.append(sub_conf)
+        total_list.append(invoice_fields["SubTotal"])
 
     if len(raw_conf_list) >= 2:
         sorted_conf = sorted(raw_conf_list, reverse=True)
-        highest_conf = DocumentField(sorted_conf[0]).content
-        invoice_fields["InvoiceTotal"] = highest_conf
+        highest_conf = sorted_conf[0]
+        for field in total_list:
+            if highest_conf == field.content:
+                invoice_fields["InvoiceTotal"] = field.content
+
     else:
         invoice_fields["InvoiceTotal"] = "Not Found"
 
