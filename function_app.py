@@ -504,6 +504,7 @@ async def upload_to_blob(message_info: dict) -> list:
         b64_inv_bytes: bytes = pdf.get("bytes")
         inv_bytes: bytes = base64.b64decode(b64_inv_bytes)
 
+        b64_inv_bytes_str: str = b64_inv_bytes.decode("utf-8")
         #logging.warning(f"PDF Raw Bytes: {inv_bytes}")
 
         ai_results = get_invoice_fields(inv_bytes)
@@ -522,16 +523,18 @@ async def upload_to_blob(message_info: dict) -> list:
         writer.write(check_rq_buffer)
         check_rq_buffer.seek(0)
         cr_bytes: bytes = check_rq_buffer.getvalue()
+        b64_cr_bytes: bytes = base64.b64encode(cr_bytes)
+        b64_cr_bytes_str: str = b64_cr_bytes.decode("utf-8")
         
         pair = {
             "invoice_id": invoice_id,
             "vendor_name": vendor_name,
             "invoice": {
-                "bytes": inv_bytes,
+                "bytes": b64_inv_bytes_str,
                 "blob_name": invoice_blob_name,
             },
             "check_request": {
-                "bytes": cr_bytes,
+                "bytes": b64_cr_bytes_str,
                 "blob_name": cr_blob_name,
             }
         }
@@ -572,11 +575,13 @@ async def return_mail(attachment_pairs: List[Dict[str,Any]]) -> List:
     for pair in attachment_pairs:
         invoice_obj: Dict = pair.get("invoice")
         inv_name = invoice_obj.get("blob_name")
-        inv_bytes: bytes = invoice_obj.get("bytes")
+        inv_bytes_str: str = invoice_obj.get("bytes")
+        inv_bytes: bytes = base64.b64decode(inv_bytes_str.encode("utf-8"))
 
         cr_obj: Dict = pair.get("check_request")
         cr_name = cr_obj.get("blob_name")
-        cr_bytes: bytes = cr_obj.get("bytes")
+        cr_bytes_str: str = cr_obj.get("bytes")
+        cr_bytes: bytes = base64.b64decode(cr_bytes_str.encode("utf-8"))
 
         inv_attachment = FileAttachment(
             odata_type= "#microsoft.graph.fileAttachment",
