@@ -430,7 +430,7 @@ def start(context: df.DurableOrchestrationContext):
     return f"Instance for MessageId: {message_id} completed. {reply}"
 
 @app.function_name(name="ProcessMessage")
-@app.activity_trigger(input_name="message")
+@app.activity_trigger(input_name="message_id")
 async def process_message(message_id: str) -> dict:
     graph_client = await get_graph_client()
 
