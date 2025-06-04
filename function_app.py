@@ -414,17 +414,9 @@ def start(context: df.DurableOrchestrationContext):
         }
     )
 
-    attachments: List = yield context.call_activity(
-        name="DraftReply",
-        input_={
-            "attachment_pairs": attachments_pairs,
-            "message_info": message_info
-        }
-    )
-
     reply = yield context.call_activity(
         name="SendReply",
-        input_={"message_info": message_info, "attachments": attachments}
+        input_={"message_info": message_info, "attachment_pairs": attachments_pairs}
     )
 
     return f"Instance for MessageId: {message_id} completed. {reply}"
@@ -440,12 +432,18 @@ async def process_message(message_id: str) -> dict:
     message = await req_builder.get()
 
     if message.has_attachments:
+        cc_recipients = []
+        if not len(message.cc_recipients) == 0:
+            for recipient in message.cc_recipients:
+                user = recipient.email_address.address
+                cc_recipients.append(user)
+
         message_info = {
             "id": message.id,
             "conversation_id": message.conversation_id,
             "sender": message.sender.email_address.address,
-            "cc": message.cc_recipients,
-            "body": message.body,
+            "cc": cc_recipients,
+            "body": message.body.content,
             "subject": message.subject,
         }
         return message_info
@@ -568,11 +566,7 @@ async def upload_to_blob(message_info: dict) -> list:
 
     return attachment_pairs
 
-@app.function_name(name="DraftReply")
-@app.activity_trigger(input_name="reply_dict_info")
-async def return_mail(reply_dict_info: dict) -> List:
-    attachment_pairs: List[Dict[str,Any]] = reply_dict_info["attachment_pairs"]
-    message_info: dict = reply_dict_info["message_info"] 
+async def return_mail(attachment_pairs: List[Dict[str,Any]]) -> List:
     
     attachments: List[Attachment] = []
     for pair in attachment_pairs:
@@ -605,7 +599,9 @@ async def return_mail(reply_dict_info: dict) -> List:
 @app.activity_trigger(input_name="reply_info")
 async def send_reply(reply_info: dict):
     message_info: dict = reply_info["message_info"]
-    attachments = reply_info["attachments"]
+    attachment_pairs: List[Dict[str,Any]] = reply_info["attachment_pairs"]
+
+    attachments: List[Attachment] = await return_mail(attachment_pairs)
 
     graph_client = await get_graph_client()
 
