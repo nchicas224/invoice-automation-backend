@@ -32,7 +32,9 @@ async def process_ai_results(results: dict[str, AnalyzeResult]):
                     table_fields.append(table_items)
             else:
                 for field, dict_value in value.items():
-                    if "content" in field:
+                    if key == "InvoiceTotal" or key == "SubTotal":
+                        invoice_fields[key] = value
+                    elif "content" in field:
                         invoice_fields[key] = dict_value
         for field, value in invoice_fields.items():
             print(f"{field}: {value}")
@@ -68,7 +70,8 @@ async def process_ai_results(results: dict[str, AnalyzeResult]):
 
     if len(raw_conf_list) >= 2:
         sorted_conf = sorted(raw_conf_list, reverse=True)
-        invoice_fields["InvoiceTotal"] = sorted_conf[0]
+        highest_conf = DocumentField(sorted_conf[0]).content
+        invoice_fields["InvoiceTotal"] = highest_conf
     else:
         invoice_fields["InvoiceTotal"] = "Not Found"
 
