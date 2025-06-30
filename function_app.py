@@ -125,7 +125,7 @@ async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestratio
 
 #Subscription Timer Trigger Function
 @app.function_name(name="SubscriptionRenewalTimer")
-@app.timer_trigger(schedule="0 0 * * * *",
+@app.timer_trigger(schedule="0 0 4 * * *",
                    arg_name="timer")
 async def renew_subscription(timer: func.TimerRequest) -> None:
     initialize_logger()
