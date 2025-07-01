@@ -44,6 +44,19 @@ from shared.azure_monitor import failsafe_counter, tracer, meter, initialize_log
 #app = func.FunctionApp()
 app = df.DFApp()
 
+@app.function_name(name="GetRoles")
+@app.route(
+    route="GetRoles",
+    auth_level=func.AuthLevel.ANONYMOUS
+)
+def get_roles(req: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse(
+        body=json.dumps(["authenticated"]),
+        mimetype="application/json",
+        status_code=200
+    )
+
+
 # Webhook Notification for new emails landing in invoices@lcf
 @app.function_name(name="NotifyNewMail")
 @app.route(
