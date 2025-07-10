@@ -163,33 +163,52 @@ async def ping_wake_timer(timer: func.TimerRequest) -> None:
     
     host = "https://invoice-automation-app-staging.azurewebsites.net"
     scope = "api://5d0f439b-3fbd-4c08-9003-f3c97e5c98d6/.default"
-    pingUrl = f"{host}/api/NotifyNewMail"
+    deadline = asyncio.get_event_loop().time() + 60.0
+
     creds = DefaultAzureCredential()
-    timeout = httpx.Timeout(
-                connect=20.0,
-                read=0.5,
-                write=0.5,
-                pool=20.0
-            )
-
-    async with httpx.AsyncClient() as client:
+    try:
         token = await creds.get_token(scope)
-        pingRec: httpx.Response = await client.get(
-            pingUrl,
-            params={"wakeUp": "wake"},
-            timeout=timeout,
-            headers={"Authorization": f"Bearer {token.token}"}
-        )
+    finally:
+        await creds.close()
 
-        logging.info("Pinged Notify new mail on: COLD START")
-        pingRec.raise_for_status()
-        await pingRec.aclose()
-    await creds.close()
-    _cold_start = False
-    logging.info("Pinged succeeded! Host is now warm.")
+    timeout = httpx.Timeout(
+        connect=20.0,
+        read=0.5,
+        write=0.5,
+        pool=20.0
+    )
 
-    if timer.past_due:
-        logging.warning("Ping Timer is past due! Check failsafe.")
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    f"{host}/api/NotifyNewMail",
+                    params={"wakeUp": "wake"},
+                    headers={"Authorization": f"Bearer {token.token}"},
+                    timeout=timeout
+                )
+                resp.raise_for_status()
+
+            logging.info(f"Ping succeeded on attempt {attempt}. Host is warm.")
+            break
+
+        except (httpx.ConnectTimeout, httpx.ReadTimeout, asyncio.CancelledError) as e:
+            now = asyncio.get_event_loop().time()
+            if now > deadline:
+                logging.error(f"Exceeded retry window ({attempt} attempts). Giving up.")
+                raise
+            logging.warning(f"Ping attempt #{attempt} failed ({e}). retrying in 2s…")
+            await asyncio.sleep(2)
+
+        except httpx.HTTPStatusError as e:
+            logging.error(f"Ping got unexpected status {e.response.status_code}")
+            raise
+
+        except Exception as e:
+            logging.exception(f"Unexpected error on ping attempt #{attempt}")
+            raise
     
 
 #Subscription Timer Trigger Function
@@ -339,6 +358,7 @@ async def create_subscription(**kwargs) -> dict:
         logging.info(f"[renew_subscription]: {result}")
     except Exception as e:
         logging.error(f"Failed to create or update webhook renewal: {e}")
+        raise
     logging.info("Returning dictionary results...")
     return {
         "result_id": result.id,
