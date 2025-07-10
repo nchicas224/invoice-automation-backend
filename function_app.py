@@ -70,9 +70,8 @@ def get_roles(req: func.HttpRequest) -> func.HttpResponse:
     auth_level=func.AuthLevel.ANONYMOUS)
 @app.durable_client_input(client_name="starter")
 async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestrationClient) -> func.HttpResponse:
-    
+    return func.HttpResponse(req.params["validationToken"], status_code=200, mimetype="text/plain")
     # Graph API handshake
-    logging.info(f"Req: {req}")
     if req.params.get("validationToken"):
         logging.warning("[notify_new_mail]:Checking Validation Token...")
         if req.params["validationToken"]:
