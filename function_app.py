@@ -163,7 +163,7 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
     global _cold_start
     if (_cold_start):
         host = "https://invoice-automation-app-staging.azurewebsites.net"
-        scope = f"{host}/.default"
+        scope = "api://5d0f439b-3fbd-4c08-9003-f3c97e5c98d6/.default"
         pingUrl = f"{host}/api/NotifyNewMail"
         creds = DefaultAzureCredential()
         try:
