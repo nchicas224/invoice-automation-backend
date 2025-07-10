@@ -171,7 +171,7 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
         async with httpx.AsyncClient() as client:
             try:
                 token = await creds.get_token(scope)
-                pingRec: httpx.Response = client.get(
+                pingRec: httpx.Response = await client.get(
                     pingUrl,
                     params={"wakeUp": "wake"},
                     timeout=httpx.Timeout(15),
