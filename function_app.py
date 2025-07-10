@@ -165,38 +165,27 @@ async def ping_wake_timer(timer: func.TimerRequest) -> None:
     scope = "api://5d0f439b-3fbd-4c08-9003-f3c97e5c98d6/.default"
     pingUrl = f"{host}/api/NotifyNewMail"
     creds = DefaultAzureCredential()
-
-    try:
-        async with httpx.AsyncClient() as client:
-            token = await creds.get_token(scope)
-            pingRec: httpx.Response = await client.get(
-                pingUrl,
-                params={"wakeUp": "wake"},
-                timeout=httpx.Timeout(
-                    connect=20.0,
-                    read=0.5,
-                    write=0.5,
-                    pool=20.0
-                ),
-                headers={"Authorization": f"Bearer {token.token}"}
+    timeout = httpx.Timeout(
+                connect=20.0,
+                read=0.5,
+                write=0.5,
+                pool=20.0
             )
 
-            logging.info("Pinged Notify new mail on: COLD START")
-            pingRec.raise_for_status()
-        _cold_start = False
-        logging.info("Pinged succeeded! Host is now warm.")
-    except httpx.ConnectTimeout:
-        logging.error(f"Failed to connect to ping endpoint within given timeout")
-        raise
-    except httpx.ReadTimeout:
-        logging.error(f"Failed to receive response from ping endpoint within given timeout")
-        raise
-    except httpx.HTTPStatusError as e:
-        logging.error(f"Failed to ping wake up endpoint: {e}")
-        raise
-    except Exception as e:
-        logging.error(f"[UNKNOWN]Failed to ping wake up endpoint: {e}")
-        raise
+    async with httpx.AsyncClient() as client:
+        token = await creds.get_token(scope)
+        pingRec: httpx.Response = await client.get(
+            pingUrl,
+            params={"wakeUp": "wake"},
+            timeout=timeout,
+            headers={"Authorization": f"Bearer {token.token}"}
+        )
+
+        logging.info("Pinged Notify new mail on: COLD START")
+        pingRec.raise_for_status()
+    _cold_start = False
+    logging.info("Pinged succeeded! Host is now warm.")
+
     if timer.past_due:
         logging.warning("Ping Timer is past due! Check failsafe.")
     
@@ -207,45 +196,6 @@ async def ping_wake_timer(timer: func.TimerRequest) -> None:
                    arg_name="timer")
 async def renew_subscription(timer: func.TimerRequest) -> None:
     initialize_logger()
-    # Send small ping to http trigger to wake up possible cold start.
-    global _cold_start
-    if (_cold_start):
-        host = "https://invoice-automation-app-staging.azurewebsites.net"
-        scope = "api://5d0f439b-3fbd-4c08-9003-f3c97e5c98d6/.default"
-        pingUrl = f"{host}/api/NotifyNewMail"
-        creds = DefaultAzureCredential()
-
-        try:
-            async with httpx.AsyncClient() as client:
-                token = await creds.get_token(scope)
-                pingRec: httpx.Response = await client.get(
-                    pingUrl,
-                    params={"wakeUp": "wake"},
-                    timeout=httpx.Timeout(
-                        connect=20.0,
-                        read=0.5,
-                        write=0.5,
-                        pool=20.0
-                    ),
-                    headers={"Authorization": f"Bearer {token.token}"}
-                )
-
-                logging.info("Pinged Notify new mail on: COLD START")
-                pingRec.raise_for_status()
-            _cold_start = False
-            logging.info("Pinged succeeded! Host is now warm.")
-        except httpx.ConnectTimeout:
-            logging.error(f"Failed to connect to ping endpoint within given timeout")
-            raise
-        except httpx.ReadTimeout:
-            logging.error(f"Failed to receive response from ping endpoint within given timeout")
-            raise
-        except httpx.HTTPStatusError as e:
-            logging.error(f"Failed to ping wake up endpoint: {e}")
-            raise
-        except Exception as e:
-            logging.error(f"[UNKNOWN]Failed to ping wake up endpoint: {e}")
-            raise
 
     if timer.past_due:
         logging.warning("Renewal Timer is past due! Check failsafe.")
