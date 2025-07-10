@@ -164,14 +164,14 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
     if (_cold_start):
         pingUrl = "https://invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail"
         creds = DefaultAzureCredential()
-        token = await creds.get_token()
         try:
+            token = await creds.get_token()
             pingRec = requests.get(
                 pingUrl, {"wakeUp": "wake"},
                 timeout=15,
                 headers={"Authorization": f"Bearer {token.token}"}
             )
-            
+
             logging.info("Pinged Notify new mail on COLD START")
             if (pingRec.status_code != 200):
                 raise requests.RequestException(
