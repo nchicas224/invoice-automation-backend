@@ -183,6 +183,7 @@ async def ping_wake_timer(timer: func.TimerRequest) -> None:
 
         logging.info("Pinged Notify new mail on: COLD START")
         pingRec.raise_for_status()
+        await pingRec.aclose()
     _cold_start = False
     logging.info("Pinged succeeded! Host is now warm.")
 
