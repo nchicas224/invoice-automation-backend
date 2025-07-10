@@ -176,7 +176,12 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
                 pingRec: httpx.Response = await client.get(
                     pingUrl,
                     params={"wakeUp": "wake"},
-                    timeout=httpx.Timeout(connect=15.0, read=1.0),
+                    timeout=httpx.Timeout(
+                        connect=20.0,
+                        read=0.5,
+                        write=0.5,
+                        pool=20.0
+                    ),
                     headers={"Authorization": f"Bearer {token.token}"}
                 )
 
