@@ -165,7 +165,7 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
         host = "https://invoice-automation-app-staging.azurewebsites.net"
         scope = f"{host}/.default"
         pingUrl = f"{host}/api/NotifyNewMail"
-        creds = ManagedIdentityCredential()
+        creds = DefaultAzureCredential()
         try:
             token = await creds.get_token(scope)
             pingRec = requests.get(
