@@ -54,7 +54,7 @@ _cold_start = True
     route="GetRoles",
     auth_level=func.AuthLevel.ANONYMOUS
 )
-def get_roles(req: func.HttpRequest) -> func.HttpResponse:
+async def get_roles(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse(
         body=json.dumps(["authenticated"]),
         mimetype="application/json",
@@ -70,7 +70,6 @@ def get_roles(req: func.HttpRequest) -> func.HttpResponse:
     auth_level=func.AuthLevel.ANONYMOUS)
 @app.durable_client_input(client_name="starter")
 async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestrationClient) -> func.HttpResponse:
-    return func.HttpResponse(req.params["validationToken"], status_code=200, mimetype="text/plain")
     # Graph API handshake
     if req.params.get("validationToken"):
         logging.warning("[notify_new_mail]:Checking Validation Token...")
@@ -156,51 +155,100 @@ async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestratio
     logging.info("Notification completed. Returning status: 'OK'")
     return func.HttpResponse(status_code=202)
 
+# Cold start Timer Trigger Function
+@app.function_name(name="PingWakeTimer")
+@app.timer_trigger(schedule="0 0 * * * *",
+                   arg_name="timer")
+async def ping_wake_timer(timer: func.TimerRequest) -> None:
+    initialize_logger()
+    # Send small ping to http trigger to wake up possible cold start.
+    global _cold_start
+    if (_cold_start):
+        host = "https://invoice-automation-app-staging.azurewebsites.net"
+        scope = "api://5d0f439b-3fbd-4c08-9003-f3c97e5c98d6/.default"
+        pingUrl = f"{host}/api/NotifyNewMail"
+        creds = DefaultAzureCredential()
+
+        try:
+            async with httpx.AsyncClient() as client:
+                token = await creds.get_token(scope)
+                pingRec: httpx.Response = await client.get(
+                    pingUrl,
+                    params={"wakeUp": "wake"},
+                    timeout=httpx.Timeout(
+                        connect=20.0,
+                        read=0.5,
+                        write=0.5,
+                        pool=20.0
+                    ),
+                    headers={"Authorization": f"Bearer {token.token}"}
+                )
+
+                logging.info("Pinged Notify new mail on: COLD START")
+                pingRec.raise_for_status()
+            _cold_start = False
+            logging.info("Pinged succeeded! Host is now warm.")
+        except httpx.ConnectTimeout:
+            logging.error(f"Failed to connect to ping endpoint within given timeout")
+            raise
+        except httpx.ReadTimeout:
+            logging.error(f"Failed to receive response from ping endpoint within given timeout")
+            raise
+        except httpx.HTTPStatusError as e:
+            logging.error(f"Failed to ping wake up endpoint: {e}")
+            raise
+        except Exception as e:
+            logging.error(f"[UNKNOWN]Failed to ping wake up endpoint: {e}")
+            raise
+    if timer.past_due:
+        logging.warning("Ping Timer is past due! Check failsafe.")
+    
+
 #Subscription Timer Trigger Function
 @app.function_name(name="SubscriptionRenewalTimer")
 @app.timer_trigger(schedule="0 0 4 * * *",
                    arg_name="timer")
 async def renew_subscription(timer: func.TimerRequest) -> None:
     initialize_logger()
-    # # Send small ping to http trigger to wake up possible cold start.
-    # global _cold_start
-    # if (_cold_start):
-    #     host = "https://invoice-automation-app-staging.azurewebsites.net"
-    #     scope = "api://5d0f439b-3fbd-4c08-9003-f3c97e5c98d6/.default"
-    #     pingUrl = f"{host}/api/NotifyNewMail"
-    #     creds = DefaultAzureCredential()
+    # Send small ping to http trigger to wake up possible cold start.
+    global _cold_start
+    if (_cold_start):
+        host = "https://invoice-automation-app-staging.azurewebsites.net"
+        scope = "api://5d0f439b-3fbd-4c08-9003-f3c97e5c98d6/.default"
+        pingUrl = f"{host}/api/NotifyNewMail"
+        creds = DefaultAzureCredential()
 
-    #     try:
-    #         async with httpx.AsyncClient() as client:
-    #             token = await creds.get_token(scope)
-    #             pingRec: httpx.Response = await client.get(
-    #                 pingUrl,
-    #                 params={"wakeUp": "wake"},
-    #                 timeout=httpx.Timeout(
-    #                     connect=20.0,
-    #                     read=0.5,
-    #                     write=0.5,
-    #                     pool=20.0
-    #                 ),
-    #                 headers={"Authorization": f"Bearer {token.token}"}
-    #             )
+        try:
+            async with httpx.AsyncClient() as client:
+                token = await creds.get_token(scope)
+                pingRec: httpx.Response = await client.get(
+                    pingUrl,
+                    params={"wakeUp": "wake"},
+                    timeout=httpx.Timeout(
+                        connect=20.0,
+                        read=0.5,
+                        write=0.5,
+                        pool=20.0
+                    ),
+                    headers={"Authorization": f"Bearer {token.token}"}
+                )
 
-    #             logging.info("Pinged Notify new mail on: COLD START")
-    #             pingRec.raise_for_status()
-    #         _cold_start = False
-    #         logging.info("Pinged succeeded! Host is now warm.")
-    #     except httpx.ConnectTimeout:
-    #         logging.error(f"Failed to connect to ping endpoint within given timeout")
-    #         raise
-    #     except httpx.ReadTimeout:
-    #         logging.error(f"Failed to receive response from ping endpoint within given timeout")
-    #         raise
-    #     except httpx.HTTPStatusError as e:
-    #         logging.error(f"Failed to ping wake up endpoint: {e}")
-    #         raise
-    #     except Exception as e:
-    #         logging.error(f"[UNKNOWN]Failed to ping wake up endpoint: {e}")
-    #         raise
+                logging.info("Pinged Notify new mail on: COLD START")
+                pingRec.raise_for_status()
+            _cold_start = False
+            logging.info("Pinged succeeded! Host is now warm.")
+        except httpx.ConnectTimeout:
+            logging.error(f"Failed to connect to ping endpoint within given timeout")
+            raise
+        except httpx.ReadTimeout:
+            logging.error(f"Failed to receive response from ping endpoint within given timeout")
+            raise
+        except httpx.HTTPStatusError as e:
+            logging.error(f"Failed to ping wake up endpoint: {e}")
+            raise
+        except Exception as e:
+            logging.error(f"[UNKNOWN]Failed to ping wake up endpoint: {e}")
+            raise
 
     if timer.past_due:
         logging.warning("Renewal Timer is past due! Check failsafe.")
