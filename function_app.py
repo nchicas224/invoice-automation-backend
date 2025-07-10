@@ -171,6 +171,7 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
                     f"Ping returned status code: {pingRec.status_code}"
                     )
             _cold_start = False
+            logging.info("Pinged succeeded! Host is now warm.")
         except requests.RequestException as e:
             logging.error(f"Failed to ping Notify function on COLD START: {e}")
             return
