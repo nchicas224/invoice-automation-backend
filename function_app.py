@@ -63,43 +63,38 @@ async def get_roles(req: func.HttpRequest) -> func.HttpResponse:
 
 
 # Webhook Notification for new emails landing in invoices@lcf
-@app.function_name(name="NotifyNewMail")
+@app.function_name(name="NotifyNewMailHandshake")
 @app.route(
     route="NotifyNewMail",
-    methods=["GET","POST"],
-    auth_level=func.AuthLevel.ANONYMOUS)
-@app.durable_client_input(client_name="starter")
-async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestrationClient) -> func.HttpResponse:
+    methods=["GET"],
+    auth_level=func.AuthLevel.ANONYMOUS
+)
+async def notify_handshake(req: func.HttpRequest) -> func.HttpResponse:
     # Graph API handshake
-    if req.params.get("validationToken"):
-        logging.warning("[notify_new_mail]:Checking Validation Token...")
-        if req.params["validationToken"]:
-             logging.warning("[notify_new_mail]:Validation token found...")
-             return func.HttpResponse(req.params["validationToken"], status_code=200, mimetype="text/plain")
-        else:
-            logging.warning("[notify_new_mail]:Token validation failed.")
-            logging.warning(f"[notify_new_mail]:METHOD={req.method}, from User-Agent={req.headers.get('User-Agent')}")
-            return func.HttpResponse(status_code=404)
-
+    if token:= req.params.get("validationToken"):
+        return func.HttpResponse(
+            body=token,
+            status_code=200,
+            mimetype="text/plain"
+        )
 
     # Check for cold start
-    if req.params.get("wakeUp"):
-        return func.HttpResponse(req.params["wakeUp"], status_code=200)
+    if req.params.get("wakeUp") == "wake":
+        return func.HttpResponse(status_code=200)
 
-
-    if req.method != "POST":
-        return func.HttpResponse(status_code=405)
+    return func.HttpResponse(status_code=405)
     
+
+# Webhook Notification for new emails landing in invoices@lcf
+@app.function_name(name="NotifyNewMailPost")
+@app.route(
+    route="NotifyNewMail",
+    methods=["POST"],
+    auth_level=func.AuthLevel.ANONYMOUS
+)
+@app.durable_client_input(client_name="starter")
+async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestrationClient) -> func.HttpResponse:
     initialize_logger()
-    
-    # Check cold start
-    global _cold_start
-
-    if (_cold_start):
-        logging.info("Starting from COLD INSTANCE")
-        _cold_start = False
-    else:
-        logging.info("Running from WARM INSTANCE")
 
     # Validate ClientState
     logging.info("Checking clientstate...")
@@ -163,43 +158,45 @@ async def ping_wake_timer(timer: func.TimerRequest) -> None:
     initialize_logger()
     # Send small ping to http trigger to wake up possible cold start.
     global _cold_start
-    if (_cold_start):
-        host = "https://invoice-automation-app-staging.azurewebsites.net"
-        scope = "api://5d0f439b-3fbd-4c08-9003-f3c97e5c98d6/.default"
-        pingUrl = f"{host}/api/NotifyNewMail"
-        creds = DefaultAzureCredential()
+    if not _cold_start:
+        return
+    
+    host = "https://invoice-automation-app-staging.azurewebsites.net"
+    scope = "api://5d0f439b-3fbd-4c08-9003-f3c97e5c98d6/.default"
+    pingUrl = f"{host}/api/NotifyNewMail"
+    creds = DefaultAzureCredential()
 
-        try:
-            async with httpx.AsyncClient() as client:
-                token = await creds.get_token(scope)
-                pingRec: httpx.Response = await client.get(
-                    pingUrl,
-                    params={"wakeUp": "wake"},
-                    timeout=httpx.Timeout(
-                        connect=20.0,
-                        read=0.5,
-                        write=0.5,
-                        pool=20.0
-                    ),
-                    headers={"Authorization": f"Bearer {token.token}"}
-                )
+    try:
+        async with httpx.AsyncClient() as client:
+            token = await creds.get_token(scope)
+            pingRec: httpx.Response = await client.get(
+                pingUrl,
+                params={"wakeUp": "wake"},
+                timeout=httpx.Timeout(
+                    connect=20.0,
+                    read=0.5,
+                    write=0.5,
+                    pool=20.0
+                ),
+                headers={"Authorization": f"Bearer {token.token}"}
+            )
 
-                logging.info("Pinged Notify new mail on: COLD START")
-                pingRec.raise_for_status()
-            _cold_start = False
-            logging.info("Pinged succeeded! Host is now warm.")
-        except httpx.ConnectTimeout:
-            logging.error(f"Failed to connect to ping endpoint within given timeout")
-            raise
-        except httpx.ReadTimeout:
-            logging.error(f"Failed to receive response from ping endpoint within given timeout")
-            raise
-        except httpx.HTTPStatusError as e:
-            logging.error(f"Failed to ping wake up endpoint: {e}")
-            raise
-        except Exception as e:
-            logging.error(f"[UNKNOWN]Failed to ping wake up endpoint: {e}")
-            raise
+            logging.info("Pinged Notify new mail on: COLD START")
+            pingRec.raise_for_status()
+        _cold_start = False
+        logging.info("Pinged succeeded! Host is now warm.")
+    except httpx.ConnectTimeout:
+        logging.error(f"Failed to connect to ping endpoint within given timeout")
+        raise
+    except httpx.ReadTimeout:
+        logging.error(f"Failed to receive response from ping endpoint within given timeout")
+        raise
+    except httpx.HTTPStatusError as e:
+        logging.error(f"Failed to ping wake up endpoint: {e}")
+        raise
+    except Exception as e:
+        logging.error(f"[UNKNOWN]Failed to ping wake up endpoint: {e}")
+        raise
     if timer.past_due:
         logging.warning("Ping Timer is past due! Check failsafe.")
     
