@@ -70,7 +70,7 @@ def get_roles(req: func.HttpRequest) -> func.HttpResponse:
 @app.durable_client_input(client_name="starter")
 async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestrationClient) -> func.HttpResponse:
     # Check for cold start
-    if (req.params.get("wakeUp")):
+    if req.params.get("wakeUp"):
         return func.HttpResponse(req.params["wakeUp"], status_code=200)
 
     # Graph API handshake
@@ -170,7 +170,7 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
             token = await creds.get_token(scope)
             pingRec = requests.get(
                 pingUrl, {"wakeUp": "wake"},
-                timeout=20,
+                timeout=(3,30),
                 headers={"Authorization": f"Bearer {token.token}"}
             )
 
