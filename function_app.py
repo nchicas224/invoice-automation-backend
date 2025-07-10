@@ -1,5 +1,7 @@
 
 import os, logging, json, uuid, base64
+
+import requests
 logging.info("function_app.py loaded!")
 import secrets
 #import HelperScripts as hs
@@ -44,6 +46,8 @@ from shared.azure_monitor import failsafe_counter, tracer, meter, initialize_log
 #app = func.FunctionApp()
 app = df.DFApp()
 
+_cold_start = True
+
 @app.function_name(name="GetRoles")
 @app.route(
     route="GetRoles",
@@ -65,6 +69,10 @@ def get_roles(req: func.HttpRequest) -> func.HttpResponse:
     auth_level=func.AuthLevel.ANONYMOUS)
 @app.durable_client_input(client_name="starter")
 async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestrationClient) -> func.HttpResponse:
+    # Check for cold start
+    if (req.params.get("wakeUp")):
+        return func.HttpResponse(req.params["wakeUp"], status_code=200)
+
     # Graph API handshake
     logging.info(f"Req: {req}")
     if req.params.get("validationToken"):
@@ -81,6 +89,15 @@ async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestratio
         return func.HttpResponse(status_code=405)
     
     initialize_logger()
+
+    # Check cold start
+    global _cold_start
+
+    if (_cold_start):
+        logging.info("Starting from COLD INSTANCE")
+        _cold_start = False
+    else:
+        logging.info("Running from WARM INSTANCE")
 
     # Validate ClientState
     logging.info("Checking clientstate...")
@@ -142,6 +159,22 @@ async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestratio
                    arg_name="timer")
 async def renew_subscription(timer: func.TimerRequest) -> None:
     initialize_logger()
+    # Send small ping to http trigger to wake up possible cold start.
+    global _cold_start
+    if (_cold_start):
+        pingUrl = "https://invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail"
+        try:
+            pingRec = requests.get(pingUrl, {"wakeUp": "wake"}, timeout=15 )
+            logging.info("Pinged Notify new mail on COLD START")
+            if (pingRec.status_code != 200):
+                raise requests.RequestException(
+                    f"Ping returned status code: {pingRec.status_code}"
+                    )
+            _cold_start = False
+        except requests.RequestException as e:
+            logging.error(f"Failed to ping Notify function on COLD START: {e}")
+            return
+
     if timer.past_due:
         logging.warning("Renewal Timer is past due! Check failsafe.")
     utc_timestamp = datetime.now().replace(tzinfo=timezone.utc).isoformat()
