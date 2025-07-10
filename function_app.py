@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry import trace, metrics
 from azure.identity import ClientSecretCredential
-from azure.identity.aio import DefaultAzureCredential
+from azure.identity.aio import DefaultAzureCredential, ManagedIdentityCredential
 from msgraph import GraphServiceClient
 from msgraph.generated.models.subscription import Subscription
 from msgraph.generated.users.item.messages.item.message_item_request_builder import MessageItemRequestBuilder
@@ -163,9 +163,10 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
     global _cold_start
     if (_cold_start):
         pingUrl = "https://invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail"
-        creds = DefaultAzureCredential()
+        scope = f"{pingUrl}/.default"
+        creds = ManagedIdentityCredential()
         try:
-            token = await creds.get_token()
+            token = await creds.get_token(scopes=scope)
             pingRec = requests.get(
                 pingUrl, {"wakeUp": "wake"},
                 timeout=15,
