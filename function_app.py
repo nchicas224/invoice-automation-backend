@@ -162,8 +162,9 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
     # Send small ping to http trigger to wake up possible cold start.
     global _cold_start
     if (_cold_start):
-        pingUrl = "https://invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail"
-        scope = f"{pingUrl}/.default"
+        host = "https://invoice-automation-app-staging.azurewebsites.net"
+        scope = f"{host}/.default"
+        pingUrl = f"{host}/api/NotifyNewMail"
         creds = ManagedIdentityCredential()
         try:
             token = await creds.get_token(scope)
