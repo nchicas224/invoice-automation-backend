@@ -174,7 +174,7 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
                 headers={"Authorization": f"Bearer {token.token}"}
             )
 
-            logging.info("Pinged Notify new mail on COLD START")
+            logging.info("Pinged Notify new mail on: COLD START")
             pingRec.raise_for_status
             _cold_start = False
             logging.info("Pinged succeeded! Host is now warm.")
