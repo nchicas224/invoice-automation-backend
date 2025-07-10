@@ -171,38 +171,37 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
         pingUrl = f"{host}/api/NotifyNewMail"
         creds = DefaultAzureCredential()
 
-        
-    try:
-        async with httpx.AsyncClient() as client:
-            token = await creds.get_token(scope)
-            pingRec: httpx.Response = await client.get(
-                pingUrl,
-                params={"wakeUp": "wake"},
-                timeout=httpx.Timeout(
-                    connect=20.0,
-                    read=0.5,
-                    write=0.5,
-                    pool=20.0
-                ),
-                headers={"Authorization": f"Bearer {token.token}"}
-            )
+        try:
+            async with httpx.AsyncClient() as client:
+                token = await creds.get_token(scope)
+                pingRec: httpx.Response = await client.get(
+                    pingUrl,
+                    params={"wakeUp": "wake"},
+                    timeout=httpx.Timeout(
+                        connect=20.0,
+                        read=0.5,
+                        write=0.5,
+                        pool=20.0
+                    ),
+                    headers={"Authorization": f"Bearer {token.token}"}
+                )
 
-            logging.info("Pinged Notify new mail on: COLD START")
-            pingRec.raise_for_status()
-        _cold_start = False
-        logging.info("Pinged succeeded! Host is now warm.")
-    except httpx.ConnectTimeout:
-        logging.error(f"Failed to connect to ping endpoint within given timeout")
-        raise
-    except httpx.ReadTimeout:
-        logging.error(f"Failed to receive response from ping endpoint within given timeout")
-        raise
-    except httpx.HTTPStatusError as e:
-        logging.error(f"Failed to ping wake up endpoint: {e}")
-        raise
-    except Exception as e:
-        logging.error(f"[UNKNOWN]Failed to ping wake up endpoint: {e}")
-        raise
+                logging.info("Pinged Notify new mail on: COLD START")
+                pingRec.raise_for_status()
+            _cold_start = False
+            logging.info("Pinged succeeded! Host is now warm.")
+        except httpx.ConnectTimeout:
+            logging.error(f"Failed to connect to ping endpoint within given timeout")
+            raise
+        except httpx.ReadTimeout:
+            logging.error(f"Failed to receive response from ping endpoint within given timeout")
+            raise
+        except httpx.HTTPStatusError as e:
+            logging.error(f"Failed to ping wake up endpoint: {e}")
+            raise
+        except Exception as e:
+            logging.error(f"[UNKNOWN]Failed to ping wake up endpoint: {e}")
+            raise
 
     if timer.past_due:
         logging.warning("Renewal Timer is past due! Check failsafe.")
