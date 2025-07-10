@@ -172,7 +172,8 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
             try:
                 token = await creds.get_token(scope)
                 pingRec: httpx.Response = client.get(
-                    pingUrl, {"wakeUp": "wake"},
+                    pingUrl,
+                    params={"wakeUp": "wake"},
                     timeout=httpx.Timeout(15),
                     headers={"Authorization": f"Bearer {token.token}"}
                 )
