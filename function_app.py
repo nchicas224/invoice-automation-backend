@@ -166,7 +166,7 @@ async def renew_subscription(timer: func.TimerRequest) -> None:
         scope = f"{pingUrl}/.default"
         creds = ManagedIdentityCredential()
         try:
-            token = await creds.get_token(scopes=scope)
+            token = await creds.get_token(scope)
             pingRec = requests.get(
                 pingUrl, {"wakeUp": "wake"},
                 timeout=15,
