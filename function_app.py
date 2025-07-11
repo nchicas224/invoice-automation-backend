@@ -213,7 +213,7 @@ async def ping_wake_timer(timer: func.TimerRequest) -> None:
 
 #Subscription Timer Trigger Function
 @app.function_name(name="SubscriptionRenewalTimer")
-@app.timer_trigger(schedule="0 */2 * * * *",
+@app.timer_trigger(schedule="0 0 4 * * *",
                    arg_name="timer")
 async def renew_subscription(timer: func.TimerRequest) -> None:
     initialize_logger()
@@ -342,12 +342,10 @@ async def create_subscription(**kwargs) -> dict:
     jwt_token = jwt.encode({"expiry": jwt_expiry}, secret, algorithm="HS256")
 
     endpoint_url = os.getenv("NOTIFICATION_URL")
-    key = os.getenv("FUNCTIONS_MASTER_KEY")
-    notif_url = f"{endpoint_url}?code={key}"
 
     request_body = Subscription(
         change_type = "created",
-        notification_url= notif_url,
+        notification_url= endpoint_url,
         resource= f"users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages",
         expiration_date_time= next_expiry,
         client_state= jwt_token,
