@@ -66,21 +66,10 @@ async def get_roles(req: func.HttpRequest) -> func.HttpResponse:
 @app.function_name(name="NotifyNewMailHandshake")
 @app.route(
     route="NotifyNewMail",
-    methods=["GET", "HEAD"],
+    methods=["GET"],
     auth_level=func.AuthLevel.ANONYMOUS
 )
 async def notify_handshake(req: func.HttpRequest) -> func.HttpResponse:
-    # Graph API handshake
-    if req.method == "HEAD":
-        return func.HttpResponse(status_code=200)
-
-    if token:= req.params.get("validationToken"):
-        return func.HttpResponse(
-            body=token,
-            status_code=200,
-            mimetype="text/plain"
-        )
-
     # Check for cold start
     if req.params.get("wakeUp") == "wake":
         return func.HttpResponse(status_code=200)
@@ -97,6 +86,17 @@ async def notify_handshake(req: func.HttpRequest) -> func.HttpResponse:
 )
 @app.durable_client_input(client_name="starter")
 async def notify_new_mail(req: func.HttpRequest, starter: df.DurableOrchestrationClient) -> func.HttpResponse:
+    # Graph API handshake
+    if req.method == "HEAD":
+        return func.HttpResponse(status_code=200)
+
+    if token:= req.params.get("validationToken"):
+        return func.HttpResponse(
+            body=token,
+            status_code=200,
+            mimetype="text/plain"
+        )
+    
     initialize_logger()
 
     # Validate ClientState
@@ -378,55 +378,18 @@ async def create_subscription(**kwargs) -> dict:
     logging.info("Graph subscription payload:\n" + json.dumps(payload, indent=2))
 
     result = None
-    # graph_client = await get_graph_client()
-    # logging.info(f"[renew_subscription]:Submitting new subscription to {endpoint_url}...")
-    # try:
-    #     result = await graph_client.subscriptions.post(request_body) ## MIGHT NEED TO ADD RETRY LOGIC HERE TO PREVENT LOAD BALANCER ISSUES
-    #     logging.info(f"[renew_subscription]: {result}")
-    # except Exception as e:
-    #     logging.error(f"Failed to create or update webhook renewal: {e}")
-    #     raise
-    # logging.info("Returning dictionary results...")
-
-    creds = DefaultAzureCredential()
+    graph_client = await get_graph_client()
+    logging.info(f"[renew_subscription]:Submitting new subscription to {endpoint_url}...")
     try:
-        token = await creds.get_token("https://graph.microsoft.com/.default")
-    finally:
-        await creds.close()
-
-    headers = {
-        "Authorization": f"Bearer {token.token}",
-        "Content-Type":  "application/json",
-    }
-
-    async with httpx.AsyncClient() as client:
-        try:
-            result = await client.post(
-                "https://graph.microsoft.com/v1.0/subscriptions",
-                headers=headers,
-                json=payload,
-                timeout=httpx.Timeout(
-                    connect=10.0,
-                    read=60.0,
-                    write=60.0,
-                    pool=10.0
-                )
-            )
-            body = result.text
-            logging.info(f"Graph responded {result.status_code}:\n{body}")
-            result.raise_for_status()
-            #return json.loads(body)
-        except httpx.HTTPStatusError as e:
-            # this will tell you exactly why Graph rejected you
-            err_body = e.response.text
-            logging.error(f"Subscription POST failed {e.response.status_code}:\n{err_body}")
-            raise
-        except Exception:
-            logging.exception("Unexpected error calling Graph")
-            raise
+        result = await graph_client.subscriptions.post(request_body) ## MIGHT NEED TO ADD RETRY LOGIC HERE TO PREVENT LOAD BALANCER ISSUES
+        logging.info(f"[renew_subscription]: {result}")
+    except Exception as e:
+        logging.error(f"Failed to create or update webhook renewal: {e}")
+        raise
+    logging.info("Returning dictionary results...")
 
     return {
-        "result_id": None,
+        "result_id": result.id,
         "latest_sub": latest_sub,
         "init_time": init_time,
         "next_expiry": next_expiry
