@@ -378,17 +378,50 @@ async def create_subscription(**kwargs) -> dict:
     logging.info("Graph subscription payload:\n" + json.dumps(payload, indent=2))
 
     result = None
-    graph_client = await get_graph_client()
-    logging.info(f"[renew_subscription]:Submitting new subscription to {endpoint_url}...")
+    # graph_client = await get_graph_client()
+    # logging.info(f"[renew_subscription]:Submitting new subscription to {endpoint_url}...")
+    # try:
+    #     result = await graph_client.subscriptions.post(request_body) ## MIGHT NEED TO ADD RETRY LOGIC HERE TO PREVENT LOAD BALANCER ISSUES
+    #     logging.info(f"[renew_subscription]: {result}")
+    # except Exception as e:
+    #     logging.error(f"Failed to create or update webhook renewal: {e}")
+    #     raise
+    # logging.info("Returning dictionary results...")
+
+    creds = DefaultAzureCredential()
     try:
-        result = await graph_client.subscriptions.post(request_body) ## MIGHT NEED TO ADD RETRY LOGIC HERE TO PREVENT LOAD BALANCER ISSUES
-        logging.info(f"[renew_subscription]: {result}")
-    except Exception as e:
-        logging.error(f"Failed to create or update webhook renewal: {e}")
-        raise
-    logging.info("Returning dictionary results...")
+        token = await creds.get_token("https://graph.microsoft.com/.default")
+    finally:
+        await creds.close()
+
+    headers = {
+        "Authorization": f"Bearer {token.token}",
+        "Content-Type":  "application/json",
+    }
+
+    async with httpx.AsyncClient() as client:
+        try:
+            result = await client.post(
+                "https://graph.microsoft.com/v1.0/subscriptions",
+                headers=headers,
+                json=payload,
+                timeout=httpx.Timeout(connect=10.0, read=60.0)
+            )
+            body = await result.text()
+            logging.info(f"Graph responded {result.status_code}:\n{body}")
+            result.raise_for_status()
+            #return json.loads(body)
+        except httpx.HTTPStatusError as e:
+            # this will tell you exactly why Graph rejected you
+            err_body = await e.response.text()
+            logging.error(f"Subscription POST failed {e.response.status_code}:\n{err_body}")
+            raise
+        except Exception:
+            logging.exception("Unexpected error calling Graph")
+            raise
+
     return {
-        "result_id": result.id,
+        "result_id": None,
         "latest_sub": latest_sub,
         "init_time": init_time,
         "next_expiry": next_expiry
