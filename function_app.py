@@ -354,7 +354,7 @@ async def create_subscription(**kwargs) -> dict:
 
     result = None
     graph_client = await get_graph_client()
-    logging.info("[renew_subscription]:Submitting new subscription...")
+    logging.info(f"[renew_subscription]:Submitting new subscription to {endpoint_url}...")
     try:
         result = await graph_client.subscriptions.post(request_body) ## MIGHT NEED TO ADD RETRY LOGIC HERE TO PREVENT LOAD BALANCER ISSUES
         logging.info(f"[renew_subscription]: {result}")
