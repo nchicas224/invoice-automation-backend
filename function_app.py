@@ -65,7 +65,7 @@ async def get_roles(req: func.HttpRequest) -> func.HttpResponse:
 # Webhook Notification for new emails landing in invoices@lcf
 @app.function_name(name="NotifyNewMailHandshake")
 @app.route(
-    route="NotifyNewMail{*rest}",
+    route="NotifyNewMail",
     methods=["GET", "HEAD"],
     auth_level=func.AuthLevel.ANONYMOUS
 )
