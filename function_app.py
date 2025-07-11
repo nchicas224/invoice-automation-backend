@@ -303,6 +303,17 @@ async def validate_subscription(body: Dict[str,List[Dict[str,Any]]]): ### NEED T
         await update_db_subscription(creation_results)
 
 async def create_subscription(**kwargs) -> dict:
+    graph_client = await get_graph_client()
+    all_subs = await graph_client.subscriptions.get()       # returns a collectionPage
+    target = f"/users/{os.environ['INVOICES_MAILBOX_ID']}/mailFolders('Inbox')/messages"
+
+    for sub in all_subs.value:
+        if sub.resource == target:
+            logging.info(f"Deleting stale subscription {sub.id} -> {sub.notification_url}")
+            await graph_client.subscriptions.by_subscription_id(sub.id).delete()
+    
+
+
     logging.info("Creating new subscription...")
 
     db_client = get_db_client()
@@ -384,15 +395,6 @@ async def create_subscription(**kwargs) -> dict:
         }
 
 async def update_db_subscription(creation_results: dict): ### NEED TO UNBLOAT THIS FUNCTION
-    graph_client = await get_graph_client()
-    all_subs = await graph_client.subscriptions.get()       # returns a collectionPage
-    target = f"/users/{os.environ['INVOICES_MAILBOX_ID']}/mailFolders('Inbox')/messages"
-
-    for sub in all_subs.value:
-        if sub.resource == target:
-            logging.info(f"▶️ Deleting stale subscription {sub.id} → {sub.notification_url}")
-            await graph_client.subscriptions.by_subscription_id(sub.id).delete()
-    
     
     logging.info("Updating subscriptions in DB...")
 
