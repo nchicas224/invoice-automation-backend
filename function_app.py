@@ -412,13 +412,13 @@ async def create_subscription(**kwargs) -> dict:
                     pool=10.0
                 )
             )
-            body = result.text()
+            body = result.text
             logging.info(f"Graph responded {result.status_code}:\n{body}")
             result.raise_for_status()
             #return json.loads(body)
         except httpx.HTTPStatusError as e:
             # this will tell you exactly why Graph rejected you
-            err_body = e.response.text()
+            err_body = e.response.text
             logging.error(f"Subscription POST failed {e.response.status_code}:\n{err_body}")
             raise
         except Exception:
