@@ -213,7 +213,7 @@ async def ping_wake_timer(timer: func.TimerRequest) -> None:
 
 #Subscription Timer Trigger Function
 @app.function_name(name="SubscriptionRenewalTimer")
-@app.timer_trigger(schedule="0 0 4 * * *",
+@app.timer_trigger(schedule="0 */2 * * * *",
                    arg_name="timer")
 async def renew_subscription(timer: func.TimerRequest) -> None:
     initialize_logger()
