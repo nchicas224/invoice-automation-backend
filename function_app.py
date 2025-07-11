@@ -341,9 +341,13 @@ async def create_subscription(**kwargs) -> dict:
     init_time = datetime.now(timezone.utc).isoformat()
     jwt_token = jwt.encode({"expiry": jwt_expiry}, secret, algorithm="HS256")
 
+    endpoint_url = os.getenv("NOTIFICATION_URL")
+    key = os.getenv("FUNCTIONS_MASTER_KEY")
+    notif_url = f"{endpoint_url}?code={key}"
+
     request_body = Subscription(
         change_type = "created",
-        notification_url= "https://invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
+        notification_url= notif_url,
         resource= f"users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages",
         expiration_date_time= next_expiry,
         client_state= jwt_token,
