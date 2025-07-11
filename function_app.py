@@ -71,6 +71,9 @@ async def get_roles(req: func.HttpRequest) -> func.HttpResponse:
 )
 async def notify_handshake(req: func.HttpRequest) -> func.HttpResponse:
     # Graph API handshake
+    if req.method == "HEAD":
+        return func.HttpResponse(status_code=200)
+
     if token:= req.params.get("validationToken"):
         return func.HttpResponse(
             body=token,
