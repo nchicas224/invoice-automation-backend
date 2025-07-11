@@ -405,7 +405,12 @@ async def create_subscription(**kwargs) -> dict:
                 "https://graph.microsoft.com/v1.0/subscriptions",
                 headers=headers,
                 json=payload,
-                timeout=httpx.Timeout(connect=10.0, read=60.0)
+                timeout=httpx.Timeout(
+                    connect=10.0,
+                    read=60.0,
+                    write=60.0,
+                    pool=10.0
+                )
             )
             body = await result.text()
             logging.info(f"Graph responded {result.status_code}:\n{body}")
