@@ -351,6 +351,17 @@ async def create_subscription(**kwargs) -> dict:
         client_state= jwt_token,
         latest_supported_tls_version= "v1_2"
     )
+    
+    payload = {
+        "changeType": "created",
+        "notificationUrl": endpoint_url,
+        "resource": f"users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages",
+        "expirationDateTime": next_expiry,
+        "clientState": jwt_token,
+        "latestSupportedTlsVersion": "v1_2"
+    }
+
+    logging.info("Graph subscription payload:\n" + json.dumps(payload, indent=2))
 
     result = None
     graph_client = await get_graph_client()
