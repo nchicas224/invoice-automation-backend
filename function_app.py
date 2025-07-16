@@ -770,8 +770,49 @@ def check_inflight(message_id: str) -> bool:
     except CosmosResourceExistsError:
         return False
 
-# @app.queue_trigger(arg_name="azqueue", queue_name="invoices",
-#                                connection="8043d5_STORAGE") 
-# def InvoiceTrigger(azqueue: func.QueueMessage):
-#     logging.info('Python Queue trigger processed a message: %s',
-#                 azqueue.get_body().decode('utf-8'))        
+## API's --------------------------------------------------------------------
+
+@app.function_name(name="UserPendingInvoices")
+@app.route(
+    route="PendingInvoices",
+    methods=["POST"],
+    auth_level=func.AuthLevel.ANONYMOUS
+)
+async def get_pending_invoices(req: func.HttpRequest) -> func.HttpResponse:
+    ## This function will call out to the storage account and container of the
+    # Given user. Retrieve all blobs in their invoice container, create a
+    # dictionary with the name of the invoice and additional data, and
+    # finally return an HttpResponse including that dictionary as
+    # json dumps for our frontend to read.
+
+    # We want to check to see if frontend has given us a user
+    if not req.params.get("currentUser"):
+        logging.error("User param was not present during fetch call")
+        return func.HttpResponse(status_code=400)
+    
+    userEmail = req.params.get("currentUser")
+    username = userEmail.lower().split("@")[0]
+    container_name = f"{username}-invoices-raw"
+    conn_str = os.environ.get("BLOB_CONNECTION_STRING")
+
+    #Establish blob client connection to retrieve blobs in container
+    blob_client = BlobServiceClient.from_connection_string(conn_str=conn_str)
+    container_client = blob_client.get_container_client(container_name)
+
+    #Iterate through the container blob list
+    blob_list = container_client.list_blobs()
+    pending_invoices = []
+    for blob in blob_list:
+        name = blob.name
+        creation_time = blob.creation_time.date().isoformat()
+        pair = {
+            "name": name,
+            "creation_time": creation_time
+        }
+        pending_invoices.append(pair)
+    
+    return func.HttpResponse(
+        json.dumps(pending_invoices),
+        status_code=200,
+        mimetype="application/json"
+    )
