@@ -807,7 +807,9 @@ async def get_pending_invoices(req: func.HttpRequest) -> func.HttpResponse:
         creation_time = blob.creation_time.date().isoformat()
         pair = {
             "name": name,
-            "creation_time": creation_time
+            "values": {
+                "creation_time": creation_time
+            }
         }
         pending_invoices.append(pair)
     
