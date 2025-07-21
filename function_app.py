@@ -791,6 +791,10 @@ async def get_pending_invoices(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(status_code=400)
     
     userEmail = req.params.get("currentUser")
+    if not userEmail:
+        logging.error("User param is invalid.")
+        return func.HttpResponse(status_code=400)
+
     username = userEmail.lower().split("@")[0]
     container_name = f"{username}-invoices-raw"
     conn_str = os.environ.get("BLOB_CONNECTION_STRING")
