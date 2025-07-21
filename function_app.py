@@ -772,9 +772,9 @@ def check_inflight(message_id: str) -> bool:
 
 ## API's --------------------------------------------------------------------
 
-@app.function_name(name="UserPendingInvoices")
+@app.function_name(name="UserInvoices")
 @app.route(
-    route="PendingInvoices",
+    route="getInvoiceList",
     methods=["POST"],
     auth_level=func.AuthLevel.ANONYMOUS
 )
