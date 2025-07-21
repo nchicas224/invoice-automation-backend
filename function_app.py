@@ -775,7 +775,7 @@ def check_inflight(message_id: str) -> bool:
 @app.function_name(name="UserInvoices")
 @app.route(
     route="getInvoiceList",
-    methods=["POST"],
+    methods=["GET"],
     auth_level=func.AuthLevel.ANONYMOUS
 )
 async def get_pending_invoices(req: func.HttpRequest) -> func.HttpResponse:
