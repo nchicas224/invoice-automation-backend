@@ -862,7 +862,7 @@ async def get_invoices(req: func.HttpRequest) -> func.HttpResponse:
     db_client = get_db_client()
     container = db_client.get_container_client(container_name)
     query = """
-    SELECT *
+    SELECT
     c.id,
     c.status,
     c.inv_name,
