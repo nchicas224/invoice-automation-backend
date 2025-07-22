@@ -657,7 +657,7 @@ async def upload_to_blob(message_info: dict) -> list:
         #Generate Invoice Object
         invoice_obj = {
             "id": id,
-            "user_id": user_id,
+            "userId": user_id,
             "status": status,
             "inv_name": inv_name,
             "inv_num": inv_num,
@@ -828,10 +828,10 @@ def check_inflight(message_id: str) -> bool:
     methods=["GET"],
     auth_level=func.AuthLevel.ANONYMOUS
 )
-async def get_pending_invoices(req: func.HttpRequest) -> func.HttpResponse:
-    ## This function will call out to the storage account and container of the
-    # Given user. Retrieve all blobs in their invoice container, create a
-    # dictionary with the name of the invoice and additional data, and
+async def get_invoices(req: func.HttpRequest) -> func.HttpResponse:
+    ## This function will call out to the DB container of the
+    # Given user. Retrieve all invoice objects from the given invTab parameter, create a
+    # dictionary with the table column values, and
     # finally return an HttpResponse including that dictionary as
     # json dumps for our frontend to read.
 
@@ -844,31 +844,88 @@ async def get_pending_invoices(req: func.HttpRequest) -> func.HttpResponse:
     if not userEmail:
         logging.error("User param is invalid.")
         return func.HttpResponse(status_code=400)
-
-    username = userEmail.lower().split("@")[0]
-    container_name = f"{username}-invoices-raw"
-    conn_str = os.environ.get("BLOB_CONNECTION_STRING")
-
-    #Establish blob client connection to retrieve blobs in container
-    blob_client = BlobServiceClient.from_connection_string(conn_str=conn_str)
-    container_client = blob_client.get_container_client(container_name)
-
-    #Iterate through the container blob list
-    blob_list = container_client.list_blobs()
-    pending_invoices = []
-    for blob in blob_list:
-        name = blob.name
-        creation_time = blob.creation_time.date().isoformat()
-        pair = {
-            "name": name,
-            "values": {
-                "creation_time": creation_time
-            }
-        }
-        pending_invoices.append(pair)
     
-    return func.HttpResponse(
-        json.dumps(pending_invoices),
+    if not req.params.get("tab"):
+        return func.HttpResponse(status_code=400)
+    invTab = req.params.get("tab")
+
+    container_name = ""
+    if invTab == "to-do":
+        container_name = "To-Do"
+    elif invTab == "pending-approval":
+        container_name = "Pending Approval"
+    elif invTab == "completed":
+        container_name = "Completed"
+    else:
+        return func.HttpResponse(status_code=400)
+    
+    db_client = get_db_client()
+    container = db_client.get_container_client(container_name)
+    query = """
+    SELECT *
+    c.id,
+    c.status,
+    c.inv_name,
+    c.inv_num,
+    c.vendor,
+    c.amount,
+    c.inv_date,
+    c.due_date,
+    c.creation_date
+    FROM c
+    WHERE c.userId = @uid
+    """
+    params = [{"name": "@uid", "value": userEmail}]
+
+    results = None
+    try:
+        results = container.query_items(
+            query=query,
+            parameters=params,
+            enable_cross_partition_query=False,
+            partition_key=userEmail
+        )
+    except Exception as e:
+        logging.error(f"Error during query: {e}")
+    
+    invoices = []
+    if results:
+        for page in results.by_page():
+            for invoice in page:
+                invoices.append(invoice)
+    else:
+        return func.HttpResponse(
+        "No Invoices found, check back later :)",
         status_code=200,
         mimetype="application/json"
     )
+    
+    return func.HttpResponse(
+        json.dumps(invoices),
+        status_code=200,
+        mimetype="application/json"
+    )
+
+    # username = userEmail.lower().split("@")[0]
+    # container_name = f"{username}-invoices-raw"
+    # conn_str = os.environ.get("BLOB_CONNECTION_STRING")
+
+    # #Establish blob client connection to retrieve blobs in container
+    # blob_client = BlobServiceClient.from_connection_string(conn_str=conn_str)
+    # container_client = blob_client.get_container_client(container_name)
+
+    # #Iterate through the container blob list
+    # blob_list = container_client.list_blobs()
+    # pending_invoices = []
+    # for blob in blob_list:
+    #     name = blob.name
+    #     creation_time = blob.creation_time.date().isoformat()
+    #     pair = {
+    #         "name": name,
+    #         "values": {
+    #             "creation_time": creation_time
+    #         }
+    #     }
+    #     pending_invoices.append(pair)
+    
+    
