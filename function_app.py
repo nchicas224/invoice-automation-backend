@@ -536,9 +536,7 @@ def start(context: df.DurableOrchestrationContext):
 
     yield context.call_activity(
         name="InitalizeInvoiceObjects",
-        input_={
-            "inv_obj_list": attach_obj_pairs[1] ## This will change once we fan out sub orchestration children
-        }
+        input_= attach_obj_pairs[1] ## This will change once we fan out sub orchestration children
     )
 
     attachments_pairs: List[Dict[str,Any]] = attach_obj_pairs[0]
