@@ -1,5 +1,6 @@
 
 import os, logging, json, uuid, base64
+from zoneinfo import ZoneInfo
 
 import httpx
 import requests
@@ -526,13 +527,21 @@ def start(context: df.DurableOrchestrationContext):
         logging.error(v)
         return
     
-    attachments_pairs: List[Dict[str,Any]] = yield context.call_activity(
+    attach_obj_pairs = yield context.call_activity(
         name="HandleAttachments",
         input_={
             "message_info": message_info
         }
     )
 
+    yield context.call_activity(
+        name="InitalizeInvoiceObjects",
+        input_={
+            "inv_obj_list": attach_obj_pairs[1] ## This will change once we fan out sub orchestration children
+        }
+    )
+
+    attachments_pairs: List[Dict[str,Any]] = attach_obj_pairs[0]
     reply = yield context.call_activity(
         name="SendReply",
         input_={"message_info": message_info, "attachment_pairs": attachments_pairs}
@@ -600,9 +609,9 @@ async def upload_to_blob(message_info: dict) -> list:
         raise ValueError("No credible attachments found.")    
     sender: str = message_info.get("sender")
 
-    container_name_clean = sender.lower().split("@")[0]
-    invoice_container_name=f"{container_name_clean}-invoices-raw"
-    cr_container_name=f"{container_name_clean}-checkrequests-raw"
+    sender_name_clean = sender.lower().split("@")[0]
+    invoice_container_name=f"{sender_name_clean}-invoices-raw"
+    cr_container_name=f"{sender_name_clean}-checkrequests-raw"
     conn_str = os.environ["BLOB_CONNECTION_STRING"]
 
     blob_sv_client = BlobServiceClient.from_connection_string(conn_str=conn_str)
@@ -618,6 +627,7 @@ async def upload_to_blob(message_info: dict) -> list:
             pass
 
     attachment_pairs = []
+    inv_obj_pairs = []
     for pdf in attachments:
         inv_name = pdf.get("name")
         b64_inv_bytes: bytes = pdf.get("bytes")
@@ -632,10 +642,41 @@ async def upload_to_blob(message_info: dict) -> list:
         invoice_fields: dict = invoice_info.get("invoice_fields")
         table_fields: list = invoice_info.get("table_fields")
 
-        invoice_id = invoice_fields.get("InvoiceId")
+        ## Generate properties for Invoice Object
+        id = f"inv-{uuid.uuid4()}"
+        user_id = sender
+        status = "to-do"
+        #inv_name
+        inv_num = invoice_fields.get("InvoiceId")
         vendor_name = invoice_fields.get("VendorName")
-        invoice_blob_name = f"invoice_{inv_name}.pdf"
-        cr_blob_name = f"check_request_{inv_name}.pdf"
+        amount = invoice_fields.get("InvoiceTotal")
+        inv_date = invoice_fields.get("InvoiceDate")
+        due_date = invoice_fields.get("DueDate")
+        creation_date = datetime.now(tz=ZoneInfo("America/New_York")).isoformat()
+        user_inputs = {}
+        #inv_container, #cr_container
+
+        #Generate Invoice Object
+        invoice_obj = {
+            "id": id,
+            "user_id": user_id,
+            "status": status,
+            "inv_name": inv_name,
+            "inv_num": inv_num,
+            "vendor": vendor_name,
+            "amount": amount,
+            "inv_date": inv_date,
+            "due_date": due_date,
+            "creation_date": creation_date,
+            "user_inputs": user_inputs,
+            "inv_container": invoice_container_name,
+            "cr_container": cr_container_name,
+        }
+        # Add to returning list
+        inv_obj_pairs.append(invoice_obj)
+
+        invoice_blob_name = f"invoice_{inv_name}" ## Add conditional to check for existing .pdf extension? Add if not present
+        cr_blob_name = f"check_request_{inv_name}"
 
         check_rq_buffer = BytesIO()
         writer: PdfWriter = fillout_form(invoice_fields=invoice_fields, table_fields=table_fields)
@@ -646,7 +687,7 @@ async def upload_to_blob(message_info: dict) -> list:
         b64_cr_bytes_str: str = b64_cr_bytes.decode("utf-8")
         
         pair = {
-            "invoice_id": invoice_id,
+            "invoice_num": inv_num,
             "vendor_name": vendor_name,
             "invoice": {
                 "bytes": b64_inv_bytes_str,
@@ -686,7 +727,18 @@ async def upload_to_blob(message_info: dict) -> list:
                 container_client.create_container()
                 blob_client.upload_blob(r_bytes, overwrite=True)
 
-    return attachment_pairs
+    return [attachment_pairs, inv_obj_pairs]
+
+@app.function_name("InitalizeInvoiceObjects")
+@app.activity_trigger(input_name="inv_obj_list")
+async def create_invoice_objects(inv_obj_list: List):
+    db_client = get_db_client()
+    cosmos_todo_container = db_client.get_container_client("To-Do")
+    for inv in inv_obj_list:
+        try:
+            cosmos_todo_container.upsert_item(inv)
+        except CosmosHttpResponseError as e:
+            logging.error(f"Error during inital invoice object upsert: {e}")
 
 async def return_mail(attachment_pairs: List[Dict[str,Any]]) -> List:
     
