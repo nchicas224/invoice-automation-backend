@@ -853,7 +853,7 @@ async def get_invoices(req: func.HttpRequest) -> func.HttpResponse:
     if invTab == "to-do":
         container_name = "To-Do"
     elif invTab == "pending-approval":
-        container_name = "Pending Approval"
+        container_name = "Pending-Approval"
     elif invTab == "completed":
         container_name = "Completed"
     else:
@@ -894,16 +894,19 @@ async def get_invoices(req: func.HttpRequest) -> func.HttpResponse:
             for invoice in page:
                 invoices.append(invoice)
     else:
+        return func.HttpResponse(status_code=500)
+    
+    if len(invoices) > 0:
+        return func.HttpResponse(
+            json.dumps(invoices),
+            status_code=200,
+            mimetype="application/json"
+        )
+    else:
         return func.HttpResponse(
         "No Invoices found, check back later :)",
         status_code=200,
         mimetype="text/plain"
-    )
-    
-    return func.HttpResponse(
-        json.dumps(invoices),
-        status_code=200,
-        mimetype="application/json"
     )
 
     # username = userEmail.lower().split("@")[0]
