@@ -897,7 +897,7 @@ async def get_invoices(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(
         "No Invoices found, check back later :)",
         status_code=200,
-        mimetype="application/json"
+        mimetype="text/plain"
     )
     
     return func.HttpResponse(
