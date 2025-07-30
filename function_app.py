@@ -828,7 +828,7 @@ def check_inflight(message_id: str) -> bool:
     methods=["GET"],
     auth_level=func.AuthLevel.ANONYMOUS
 )
-async def get_invoices(req: func.HttpRequest) -> func.HttpResponse:
+def get_invoices(req: func.HttpRequest) -> func.HttpResponse:
     ## This function will call out to the DB container of the
     # Given user. Retrieve all invoice objects from the given invTab parameter, create a
     # dictionary with the table column values, and
@@ -916,7 +916,7 @@ async def get_invoices(req: func.HttpRequest) -> func.HttpResponse:
     methods=["GET"],
     auth_level=func.AuthLevel.ANONYMOUS
 )
-async def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
+def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
     if not (req.params.get("user")):
         return func.HttpResponse(status_code=400)
     
@@ -947,7 +947,7 @@ async def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
             key_expiry_time=end_exp
         )
     except HttpResponseError as e:
-        return HttpResponse(body=f"{e}", status_code=500)
+        return HttpResponse(body=f"{e}", status_code=500, mimetype="text/plain")
 
     #Generate SAS Tokens for each Blob
     account_name = account_url.split(".")[0]
