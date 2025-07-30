@@ -935,6 +935,7 @@ def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
     #Establish blob client connection to retrieve blobs in container
     account_url = os.getenv("STORAGE_ACCOUNT_NAME")
     svc_client = BlobServiceClient(account_url=account_url, credential=credential)
+    logging.info(svc_client.account_name)
     inv_url: str = svc_client.get_blob_client(container=inv_container_name, blob=inv_blob).url
     cr_url: str = svc_client.get_blob_client(container=cr_container_name, blob=cr_blob).url
 
