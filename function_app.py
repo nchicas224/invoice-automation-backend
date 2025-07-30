@@ -30,10 +30,10 @@ from msgraph.generated.models.attachment import Attachment
 from msgraph.generated.models.attachment_collection_response import AttachmentCollectionResponse
 from msgraph.generated.models.file_attachment import FileAttachment
 from azure.functions import HttpResponse
-from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
+from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError, HttpResponseError
 from azure.cosmos import CosmosClient, ContainerProxy, DatabaseProxy, CosmosDict
 from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosResourceNotFoundError, CosmosResourceExistsError
-from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
+from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient, BlobSasPermissions, generate_blob_sas
 from openai import AzureOpenAI
 from pypdf import PdfWriter
 from io import BytesIO
@@ -909,26 +909,88 @@ async def get_invoices(req: func.HttpRequest) -> func.HttpResponse:
         mimetype="text/plain"
     )
 
-    # username = userEmail.lower().split("@")[0]
-    # container_name = f"{username}-invoices-raw"
-    # conn_str = os.environ.get("BLOB_CONNECTION_STRING")
+#---------------------Invoice Page API ---------------------------------------------------------
+@app.function_name("GetInvoicePage")
+@app.route(
+    route="getInvoicePage",
+    methods=["GET"],
+    auth_level=func.AuthLevel.ANONYMOUS
+)
+async def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
+    if not (req.params.get("user")):
+        return func.HttpResponse(status_code=400)
+    
+    userEmail = req.params.get("user")
+    username = userEmail.lower().split("@")[0]
 
-    # #Establish blob client connection to retrieve blobs in container
-    # blob_client = BlobServiceClient.from_connection_string(conn_str=conn_str)
-    # container_client = blob_client.get_container_client(container_name)
+    inv_blob = req.params.get("inv")
+    cr_blob = req.params.get("cr")
 
-    # #Iterate through the container blob list
-    # blob_list = container_client.list_blobs()
-    # pending_invoices = []
-    # for blob in blob_list:
-    #     name = blob.name
-    #     creation_time = blob.creation_time.date().isoformat()
-    #     pair = {
-    #         "name": name,
-    #         "values": {
-    #             "creation_time": creation_time
-    #         }
-    #     }
-    #     pending_invoices.append(pair)
+    inv_container_name = f"{username}-invoices-raw"
+    cr_container_name = f"{username}-checkrequest-raw"
+
+
+    credential = DefaultAzureCredential()
+
+    #Establish blob client connection to retrieve blobs in container
+    account_url = os.getenv("STORAGE_ACCOUNT_NAME")
+    svc_client = BlobServiceClient(account_url=account_url, credential=credential)
+    inv_url: str = svc_client.get_blob_client(container=inv_container_name, blob=inv_blob).url
+    cr_url: str = svc_client.get_blob_client(container=cr_container_name, blob=cr_blob).url
+
+    # Generate User Delegation Key to sign SAS Tokens
+    start_exp = datetime.now(tz=timezone.utc)
+    end_exp = start_exp + timedelta(1)
+    try:
+        udk = svc_client.get_user_delegation_key(
+            key_start_time=start_exp,
+            key_expiry_time=end_exp
+        )
+    except HttpResponseError as e:
+        return HttpResponse(body=f"{e}", status_code=500)
+
+    #Generate SAS Tokens for each Blob
+    account_name = account_url.split(".")[0]
+    permission = BlobSasPermissions(read=True)
+    try:
+        inv_sas = generate_blob_sas(
+            account_name=account_name,
+            container_name=inv_container_name,
+            blob_name=inv_blob,
+            user_delegation_key=udk,
+            permission=permission,
+            start=start_exp,
+            expiry=end_exp
+        )
+
+        cr_sas = generate_blob_sas(
+            account_name=account_name,
+            container_name=cr_container_name,
+            blob_name=cr_blob,
+            user_delegation_key=udk,
+            permission=permission,
+            start=start_exp,
+            expiry=end_exp
+        )
+    except ValueError as e:
+        return HttpResponse(body=f"{e}", status_code=500)
+
+    #Craft SAS URL's for each blob using the generated SAS Tokens
+    inv_sas_url = f"{inv_url}?{inv_sas}"
+    cr_sas_url = f"{cr_url}?{cr_sas}"
+    payload = {
+        "inv_sas": inv_sas_url,
+        "cr_sas": cr_sas_url
+    }
+
+    return HttpResponse(
+        body=json.dumps(payload),
+        status_code=200,
+        mimetype="application/json"
+    )
+
+    
+    ## Need to figure out account key and account name extraction. Need to update the RBAC Role for Key Vault keys
+    ## Store those variables in key vault for safety.
     
     
