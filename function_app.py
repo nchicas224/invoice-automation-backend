@@ -916,7 +916,7 @@ def get_invoices(req: func.HttpRequest) -> func.HttpResponse:
     methods=["GET"],
     auth_level=func.AuthLevel.ANONYMOUS
 )
-def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
+async def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
     if not (req.params.get("user")):
         return func.HttpResponse(status_code=400)
     
@@ -933,8 +933,9 @@ def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
     credential = DefaultAzureCredential()
 
     #Establish blob client connection to retrieve blobs in container
+    from azure.storage.blob.aio import BlobServiceClient as BlobServiceAio
     account_url = os.getenv("STORAGE_ACCOUNT_NAME")
-    svc_client = BlobServiceClient(account_url=account_url, credential=credential)
+    svc_client = BlobServiceAio(account_url=account_url, credential=credential)
     logging.info(svc_client.account_name)
     inv_url: str = svc_client.get_blob_client(container=inv_container_name, blob=inv_blob).url
     cr_url: str = svc_client.get_blob_client(container=cr_container_name, blob=cr_blob).url
@@ -943,7 +944,7 @@ def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
     start_exp = datetime.now(tz=timezone.utc)
     end_exp = start_exp + timedelta(1)
     try:
-        udk = svc_client.get_user_delegation_key(
+        udk = await svc_client.get_user_delegation_key(
             key_start_time=start_exp,
             key_expiry_time=end_exp
         )
@@ -951,8 +952,6 @@ def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
         return HttpResponse(body=f"{e}", status_code=500, mimetype="text/plain")
 
     #Generate SAS Tokens for each Blob
-    account_name = account_url.split(".")[0]
-    logging.info(account_name)
     permission = BlobSasPermissions(read=True)
     try:
         inv_sas = generate_blob_sas(
@@ -966,7 +965,7 @@ def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
         )
 
         cr_sas = generate_blob_sas(
-            account_name=account_name,
+            account_name=svc_client.account_name,
             container_name=cr_container_name,
             blob_name=cr_blob,
             user_delegation_key=udk,
