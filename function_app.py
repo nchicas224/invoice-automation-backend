@@ -929,52 +929,54 @@ async def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
     inv_container_name = f"{username}-invoices-raw"
     cr_container_name = f"{username}-checkrequest-raw"
 
-
-    credential = DefaultAzureCredential()
-
-    #Establish blob client connection to retrieve blobs in container
-    from azure.storage.blob.aio import BlobServiceClient as BlobServiceAio
     account_url = os.getenv("STORAGE_ACCOUNT_NAME")
-    svc_client = BlobServiceAio(account_url=account_url, credential=credential)
-    logging.info(svc_client.account_name)
-    inv_url: str = svc_client.get_blob_client(container=inv_container_name, blob=inv_blob).url
-    cr_url: str = svc_client.get_blob_client(container=cr_container_name, blob=cr_blob).url
 
-    # Generate User Delegation Key to sign SAS Tokens
-    start_exp = datetime.now(tz=timezone.utc)
-    end_exp = start_exp + timedelta(1)
-    try:
-        udk = await svc_client.get_user_delegation_key(
-            key_start_time=start_exp,
-            key_expiry_time=end_exp
-        )
-    except HttpResponseError as e:
-        return HttpResponse(body=f"{e}", status_code=500, mimetype="text/plain")
+    from azure.storage.blob.aio import BlobServiceClient as BlobServiceAio
+    async with DefaultAzureCredential() as credential, BlobServiceAio(
+        account_url=account_url, credential=credential
+        ) as svc_client:
 
-    #Generate SAS Tokens for each Blob
-    permission = BlobSasPermissions(read=True)
-    try:
-        inv_sas = generate_blob_sas(
-            account_name=svc_client.account_name,
-            container_name=inv_container_name,
-            blob_name=inv_blob,
-            user_delegation_key=udk,
-            permission=permission,
-            start=start_exp,
-            expiry=end_exp
-        )
 
-        cr_sas = generate_blob_sas(
-            account_name=svc_client.account_name,
-            container_name=cr_container_name,
-            blob_name=cr_blob,
-            user_delegation_key=udk,
-            permission=permission,
-            start=start_exp,
-            expiry=end_exp
-        )
-    except ValueError as e:
-        return HttpResponse(body=f"{e}", status_code=500)
+        #Establish blob client connection to retrieve blobs in container
+        logging.info(svc_client.account_name)
+        inv_url: str = svc_client.get_blob_client(container=inv_container_name, blob=inv_blob).url
+        cr_url: str = svc_client.get_blob_client(container=cr_container_name, blob=cr_blob).url
+
+        # Generate User Delegation Key to sign SAS Tokens
+        start_exp = datetime.now(tz=timezone.utc)
+        end_exp = start_exp + timedelta(1)
+        try:
+            udk = await svc_client.get_user_delegation_key(
+                key_start_time=start_exp,
+                key_expiry_time=end_exp
+            )
+        except HttpResponseError as e:
+            return HttpResponse(body=f"{e}", status_code=500, mimetype="text/plain")
+
+        #Generate SAS Tokens for each Blob
+        permission = BlobSasPermissions(read=True)
+        try:
+            inv_sas = generate_blob_sas(
+                account_name=svc_client.account_name,
+                container_name=inv_container_name,
+                blob_name=inv_blob,
+                user_delegation_key=udk,
+                permission=permission,
+                start=start_exp,
+                expiry=end_exp
+            )
+
+            cr_sas = generate_blob_sas(
+                account_name=svc_client.account_name,
+                container_name=cr_container_name,
+                blob_name=cr_blob,
+                user_delegation_key=udk,
+                permission=permission,
+                start=start_exp,
+                expiry=end_exp
+            )
+        except ValueError as e:
+            return HttpResponse(body=f"{e}", status_code=500)
 
     #Craft SAS URL's for each blob using the generated SAS Tokens
     inv_sas_url = f"{inv_url}?{inv_sas}"
