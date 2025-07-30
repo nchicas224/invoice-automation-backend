@@ -952,10 +952,11 @@ def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
 
     #Generate SAS Tokens for each Blob
     account_name = account_url.split(".")[0]
+    logging.info(account_name)
     permission = BlobSasPermissions(read=True)
     try:
         inv_sas = generate_blob_sas(
-            account_name=account_name,
+            account_name=svc_client.account_name,
             container_name=inv_container_name,
             blob_name=inv_blob,
             user_delegation_key=udk,
