@@ -654,12 +654,16 @@ async def upload_to_blob(message_info: dict) -> list:
         user_inputs = {}
         #inv_container, #cr_container
 
+        invoice_blob_name = f"invoice_{inv_name}" ## Add conditional to check for existing .pdf extension? Add if not present
+        cr_blob_name = f"check_request_{inv_name}"
+
         #Generate Invoice Object
         invoice_obj = {
             "id": id,
             "userId": user_id,
             "status": status,
             "inv_name": inv_name,
+            "inv_blob": invoice_blob_name,
             "inv_num": inv_num,
             "vendor": vendor_name,
             "amount": amount,
@@ -669,12 +673,10 @@ async def upload_to_blob(message_info: dict) -> list:
             "user_inputs": user_inputs,
             "inv_container": invoice_container_name,
             "cr_container": cr_container_name,
+            "cr_blob": cr_blob_name
         }
         # Add to returning list
         inv_obj_pairs.append(invoice_obj)
-
-        invoice_blob_name = f"invoice_{inv_name}" ## Add conditional to check for existing .pdf extension? Add if not present
-        cr_blob_name = f"check_request_{inv_name}"
 
         check_rq_buffer = BytesIO()
         writer: PdfWriter = fillout_form(invoice_fields=invoice_fields, table_fields=table_fields)
@@ -866,12 +868,16 @@ def get_invoices(req: func.HttpRequest) -> func.HttpResponse:
     c.id,
     c.status,
     c.inv_name,
+    c.inv_blob,
     c.inv_num,
     c.vendor,
     c.amount,
     c.inv_date,
     c.due_date,
-    c.creation_date
+    c.creation_date,
+    c.inv_container,
+    c.cr_container,
+    c.cr_blob
     FROM c
     WHERE c.userId = @uid
     """
