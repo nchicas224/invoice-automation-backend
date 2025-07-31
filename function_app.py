@@ -923,9 +923,6 @@ def get_invoices(req: func.HttpRequest) -> func.HttpResponse:
     auth_level=func.AuthLevel.ANONYMOUS
 )
 async def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
-    if not (req.params.get("user")):
-        return func.HttpResponse(status_code=400)
-    
     try:
         inv_blob = req.params["ib"]
         cr_blob = req.params["cb"]
