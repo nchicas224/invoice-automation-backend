@@ -927,7 +927,7 @@ async def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
     cr_blob = req.params.get("cr")
 
     inv_container_name = f"{username}-invoices-raw"
-    cr_container_name = f"{username}-checkrequest-raw"
+    cr_container_name = f"{username}-checkrequests-raw"
 
     account_url = os.getenv("STORAGE_ACCOUNT_NAME")
 
