@@ -926,14 +926,15 @@ async def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
     if not (req.params.get("user")):
         return func.HttpResponse(status_code=400)
     
-    userEmail = req.params.get("user")
-    username = userEmail.lower().split("@")[0]
+    try:
+        inv_blob = req.params["ib"]
+        cr_blob = req.params["cb"]
 
-    inv_blob = req.params.get("inv")
-    cr_blob = req.params.get("cr")
+        inv_container_name = req.params["icn"]
+        cr_container_name = req.params["ccn"]
 
-    inv_container_name = f"{username}-invoices-raw"
-    cr_container_name = f"{username}-checkrequests-raw"
+    except KeyError as e:
+        return HttpResponse(body={e}, status_code=400, mimetype="text/plain")
 
     account_url = os.getenv("STORAGE_ACCOUNT_NAME")
 
