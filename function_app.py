@@ -963,7 +963,9 @@ async def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
                 user_delegation_key=udk,
                 permission=permission,
                 start=start_exp,
-                expiry=end_exp
+                expiry=end_exp,
+                content_disposition=f"inline; filename={inv_blob}",
+                content_type="application/pdf"
             )
 
             cr_sas = generate_blob_sas(
@@ -973,7 +975,9 @@ async def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
                 user_delegation_key=udk,
                 permission=permission,
                 start=start_exp,
-                expiry=end_exp
+                expiry=end_exp,
+                content_disposition=f"inline; filename={cr_blob}",
+                content_type="application/pdf"
             )
         except ValueError as e:
             return HttpResponse(body=f"{e}", status_code=500)
@@ -991,9 +995,5 @@ async def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
         status_code=200,
         mimetype="application/json"
     )
-
-    
-    ## Need to figure out account key and account name extraction. Need to update the RBAC Role for Key Vault keys
-    ## Store those variables in key vault for safety.
     
     
