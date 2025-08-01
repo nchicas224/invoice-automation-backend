@@ -956,7 +956,7 @@ async def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
         with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as z:
             z.writestr(f"{inv_blob}", inv_bytes)
             z.writestr(f"{cr_blob}", cr_bytes)
-            buf.seek(0)
+        buf.seek(0)
     
     headers = {
         "Content-Type": "application/zip",
