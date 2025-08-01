@@ -1,5 +1,6 @@
 
 import os, logging, json, uuid, base64
+import zipfile
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -924,6 +925,8 @@ def get_invoices(req: func.HttpRequest) -> func.HttpResponse:
 )
 async def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
     try:
+        inv_id = req.params["id"]
+
         inv_blob = req.params["ib"]
         cr_blob = req.params["cb"]
 
@@ -943,61 +946,22 @@ async def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
 
         #Establish blob client connection to retrieve blobs in container
         logging.info(svc_client.account_name)
-        inv_url: str = svc_client.get_blob_client(container=inv_container_name, blob=inv_blob).url
-        cr_url: str = svc_client.get_blob_client(container=cr_container_name, blob=cr_blob).url
+        inv_url = await svc_client.get_blob_client(container=inv_container_name, blob=inv_blob).download_blob()
+        cr_url = await svc_client.get_blob_client(container=cr_container_name, blob=cr_blob).download_blob()
 
-        # Generate User Delegation Key to sign SAS Tokens
-        start_exp = datetime.now(tz=timezone.utc)
-        end_exp = start_exp + timedelta(1)
-        try:
-            udk = await svc_client.get_user_delegation_key(
-                key_start_time=start_exp,
-                key_expiry_time=end_exp
-            )
-        except HttpResponseError as e:
-            return HttpResponse(body=f"{e}", status_code=500, mimetype="text/plain")
-
-        #Generate SAS Tokens for each Blob
-        permission = BlobSasPermissions(read=True)
-        try:
-            inv_sas = generate_blob_sas(
-                account_name=svc_client.account_name,
-                container_name=inv_container_name,
-                blob_name=inv_blob,
-                user_delegation_key=udk,
-                permission=permission,
-                start=start_exp,
-                expiry=end_exp,
-                content_disposition=f"inline; filename={inv_blob}",
-                content_type="application/pdf"
-            )
-
-            cr_sas = generate_blob_sas(
-                account_name=svc_client.account_name,
-                container_name=cr_container_name,
-                blob_name=cr_blob,
-                user_delegation_key=udk,
-                permission=permission,
-                start=start_exp,
-                expiry=end_exp,
-                content_disposition=f"inline; filename={cr_blob}",
-                content_type="application/pdf"
-            )
-        except ValueError as e:
-            return HttpResponse(body=f"{e}", status_code=500)
-
-    #Craft SAS URL's for each blob using the generated SAS Tokens
-    inv_sas_url = f"{inv_url}?{inv_sas}"
-    cr_sas_url = f"{cr_url}?{cr_sas}"
-    payload = {
-        "inv_sas": inv_sas_url,
-        "cr_sas": cr_sas_url
+        inv_bytes = inv_url.readall()
+        cr_bytes = cr_url.readall()
+        
+        buf = BytesIO()
+        with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as z:
+            z.writestr(f"{inv_blob}", inv_bytes)
+            z.writestr(f"{cr_blob}", cr_bytes)
+            buf.seek(0)
+    
+    headers = {
+        "Content-Type": "application/zip",
+        "Content-Disposition": f"attachment; filename=invoice-package-{inv_id}.zip"
     }
 
-    return HttpResponse(
-        body=json.dumps(payload),
-        status_code=200,
-        mimetype="application/json"
-    )
-    
+    return HttpResponse(body=buf.read(), headers=headers, status_code=200)
     
