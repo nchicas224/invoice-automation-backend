@@ -949,8 +949,8 @@ async def getInvoicePage(req: func.HttpRequest) -> func.HttpResponse:
         inv_url = await svc_client.get_blob_client(container=inv_container_name, blob=inv_blob).download_blob()
         cr_url = await svc_client.get_blob_client(container=cr_container_name, blob=cr_blob).download_blob()
 
-        inv_bytes = inv_url.readall()
-        cr_bytes = cr_url.readall()
+        inv_bytes = await inv_url.readall()
+        cr_bytes = await cr_url.readall()
         
         buf = BytesIO()
         with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as z:
