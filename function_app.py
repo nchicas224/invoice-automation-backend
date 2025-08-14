@@ -853,9 +853,9 @@ def get_invoices(req: func.HttpRequest) -> func.HttpResponse:
     invTab = req.params.get("tab")
 
     container_name = ""
-    if invTab == "to-do":
+    if invTab == "pending":
         container_name = "To-Do"
-    elif invTab == "pending-approval":
+    elif invTab == "approvals":
         container_name = "Pending-Approval"
     elif invTab == "completed":
         container_name = "Completed"
