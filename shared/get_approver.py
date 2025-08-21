@@ -22,7 +22,7 @@ async def get_user_approver(userId:str, tenantId:str, resolved_time:str):
     req_config = user_call.UserItemRequestBuilderGetRequestConfiguration(query_parameters=query_params)
     user_obj = await user_call.get(request_configuration=req_config)
     
-    csa = getattr(user_obj, "custom_security_attributes", None)
+    csa = user_obj.custom_security_attributes.additional_data or {}
     if not csa:
         csa = (getattr(user_obj, "additional_data", {}) or {}).get("customSecurityAttributes")
         logging.info("CSA grabbed from additional data, missing from user_obj standalone attribute")
