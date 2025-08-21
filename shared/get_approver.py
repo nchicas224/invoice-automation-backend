@@ -25,7 +25,9 @@ async def get_user_approver(userId:str, tenantId:str, resolved_time:str):
     csa = getattr(user_obj, "custom_security_attributes", None)
     if not csa:
         csa = (getattr(user_obj, "additional_data", {}) or {}).get("customSecurityAttributes")
+        logging.info("CSA grabbed from additional data, missing from user_obj standalone attribute")
 
+    logging.info(f"CSA: {csa}")
     invoice_p = (csa or {}).get("Invoice") or {}
     approver_upn = invoice_p.get("Approver") or None
 
@@ -45,10 +47,11 @@ async def get_user_approver(userId:str, tenantId:str, resolved_time:str):
 
     try:
         cosmos_profiles_container.create_item(payload)
+        logging.info("Item successfully created by this worker, returning.")
         return {"status": "ok", "cache":"miss", "approver":approver_upn}
     except CosmosHttpResponseError as e:
         if e.status_code == 409:
-            logging.info("UserProfiles race-won-by-peer")
+            logging.info("UserProfiles race-won-by-peer, returning.")
             approver = cosmos_profiles_container.read_item(item="profile", partition_key=[tenantId, userId])
             return {"status": "ok", "cache":"raced", "approver":approver.get("approver")}
         raise
