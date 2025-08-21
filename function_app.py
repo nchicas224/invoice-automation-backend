@@ -5,6 +5,8 @@ from zoneinfo import ZoneInfo
 
 import httpx
 import requests
+
+from shared import get_approver
 logging.info("function_app.py loaded!")
 import secrets
 #import HelperScripts as hs
@@ -511,6 +513,10 @@ async def update_db_subscription(creation_results: dict): ### NEED TO UNBLOAT TH
 @app.orchestration_trigger(context_name="context")
 def start(context: df.DurableOrchestrationContext):
     input_data = context.get_input()
+    retry = df.RetryOptions(
+        first_retry_interval_in_milliseconds=500,
+        max_number_of_attempts=5
+    )
 
     try:
         message_id = input_data["message_id"]
@@ -528,8 +534,9 @@ def start(context: df.DurableOrchestrationContext):
         logging.error(v)
         return
     
-    attach_obj_pairs = yield context.call_activity(
+    attach_obj_pairs = yield context.call_activity_with_retry(
         name="HandleAttachments",
+        retry_options=retry,
         input_={
             "message_info": message_info
         }
@@ -583,6 +590,12 @@ async def upload_to_blob(message_info: dict) -> list:
     message_info: dict = message_info["message_info"]
     graph_client = await get_graph_client()
 
+    sender: str = message_info.get("sender")
+    tenantId = sender.lower().split("@")[1].split(".")[0]
+
+    #Get User Approver
+    approver_obj: dict = get_approver(sender, tenantId)
+
     req_builder: MessageItemRequestBuilder = graph_client.users.by_user_id(
         os.environ["INVOICES_MAILBOX_ID"]).messages.by_message_id(message_id=message_info["id"])
     
@@ -606,8 +619,7 @@ async def upload_to_blob(message_info: dict) -> list:
         
     if len(attachments) == 0:
         raise ValueError("No credible attachments found.")    
-    sender: str = message_info.get("sender")
-
+    
     sender_name_clean = sender.lower().split("@")[0]
     invoice_container_name=f"{sender_name_clean}-invoices-raw"
     cr_container_name=f"{sender_name_clean}-checkrequests-raw"
@@ -644,6 +656,7 @@ async def upload_to_blob(message_info: dict) -> list:
         ## Generate properties for Invoice Object
         id = f"inv-{uuid.uuid4()}"
         user_id = sender
+        approver = approver_obj.get("approver")
         status = "to-do"
         #inv_name
         inv_num = invoice_fields.get("InvoiceId")
@@ -661,7 +674,9 @@ async def upload_to_blob(message_info: dict) -> list:
         #Generate Invoice Object
         invoice_obj = {
             "id": id,
+            "tenantId": tenantId,
             "userId": user_id,
+            "approver": approver,
             "status": status,
             "inv_name": inv_name,
             "inv_blob": invoice_blob_name,
@@ -734,7 +749,7 @@ async def upload_to_blob(message_info: dict) -> list:
 @app.activity_trigger(input_name="inv_obj_list")
 async def create_invoice_objects(inv_obj_list: List):
     db_client = get_db_client()
-    cosmos_todo_container = db_client.get_container_client("To-Do")
+    cosmos_todo_container = db_client.get_container_client("Invoices")
     for inv in inv_obj_list:
         try:
             cosmos_todo_container.upsert_item(inv)
