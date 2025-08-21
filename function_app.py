@@ -6,7 +6,6 @@ from zoneinfo import ZoneInfo
 import httpx
 import requests
 
-from shared import get_approver
 logging.info("function_app.py loaded!")
 import secrets
 #import HelperScripts as hs
@@ -47,6 +46,7 @@ from shared.di_process import get_invoice_fields
 from shared.process_ai_results import process_ai_results
 from shared.populate_checkform import fillout_form
 from shared.azure_monitor import failsafe_counter, tracer, meter, initialize_logger
+from shared.get_approver import get_user_approver
 
 #app = func.FunctionApp()
 app = df.DFApp()
@@ -594,7 +594,7 @@ async def upload_to_blob(message_info: dict) -> list:
     tenantId = sender.lower().split("@")[1].split(".")[0]
 
     #Get User Approver
-    approver_obj: dict = get_approver(sender, tenantId)
+    approver_obj: dict = await get_user_approver(sender, tenantId)
 
     req_builder: MessageItemRequestBuilder = graph_client.users.by_user_id(
         os.environ["INVOICES_MAILBOX_ID"]).messages.by_message_id(message_id=message_info["id"])
