@@ -594,7 +594,8 @@ async def upload_to_blob(message_info: dict) -> list:
     tenantId = sender.lower().split("@")[1].split(".")[0]
 
     #Get User Approver
-    approver_obj: dict = await get_user_approver(sender, tenantId)
+    creation_date = datetime.now(tz=ZoneInfo("America/New_York")).isoformat()
+    approver_obj: dict = await get_user_approver(sender, tenantId, creation_date)
 
     req_builder: MessageItemRequestBuilder = graph_client.users.by_user_id(
         os.environ["INVOICES_MAILBOX_ID"]).messages.by_message_id(message_id=message_info["id"])
@@ -664,7 +665,6 @@ async def upload_to_blob(message_info: dict) -> list:
         amount = invoice_fields.get("InvoiceTotal")
         inv_date = invoice_fields.get("InvoiceDate")
         due_date = invoice_fields.get("DueDate")
-        creation_date = datetime.now(tz=ZoneInfo("America/New_York")).isoformat()
         user_inputs = {}
         #inv_container, #cr_container
 
