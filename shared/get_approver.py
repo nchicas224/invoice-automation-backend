@@ -34,8 +34,7 @@ async def get_user_approver(userId:str, tenantId:str, resolved_time:str):
     qp = approver_call.UserItemRequestBuilderGetQueryParameters(select=["displayName"])
     rc = approver_call.UserItemRequestBuilderGetRequestConfiguration(query_parameters=qp)
     approver_name_return = await approver_call.get(request_configuration=rc)
-    logging.info(approver_name_return)
-    logging.info(approver_name_return.additional_data)
+    logging.info(approver_name_return.display_name)
     approver_display_name = approver_name_return.display_name or "Not Found"
 
     approver_obj = {
