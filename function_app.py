@@ -542,6 +542,10 @@ def start(context: df.DurableOrchestrationContext):
         }
     )
 
+    if not attach_obj_pairs:
+        logging.error("Sender is not a part of the organizational directory.")
+        return
+
     yield context.call_activity(
         name="InitalizeInvoiceObjects",
         input_= attach_obj_pairs[1] ## This will change once we fan out sub orchestration children
@@ -596,6 +600,8 @@ async def upload_to_blob(message_info: dict) -> list:
     #Get User Approver
     creation_date = datetime.now(tz=ZoneInfo("America/New_York")).isoformat()
     approver_obj: dict = await get_user_approver(sender, tenantId, creation_date)
+    if not approver_obj:
+        return None
 
     req_builder: MessageItemRequestBuilder = graph_client.users.by_user_id(
         os.environ["INVOICES_MAILBOX_ID"]).messages.by_message_id(message_id=message_info["id"])

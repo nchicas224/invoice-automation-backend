@@ -3,6 +3,7 @@ from shared.azure_monitor import initialize_logger
 from shared.database_client import get_db_client
 from shared.graph_client import get_graph_client
 from azure.cosmos.exceptions import CosmosResourceNotFoundError, CosmosHttpResponseError
+from msgraph.generated.models.o_data_errors.o_data_error import ODataError
 
 
 async def get_user_approver(userId:str, tenantId:str, resolved_time:str):
@@ -17,10 +18,16 @@ async def get_user_approver(userId:str, tenantId:str, resolved_time:str):
         logging.info("Missed Cache, running Graph API call...")
 
     graph_client = await get_graph_client()
-    user_call =  graph_client.users.by_user_id(user_id=userId)
+    user_call = graph_client.users.by_user_id(user_id=userId)    
     query_params = user_call.UserItemRequestBuilderGetQueryParameters(select=["customSecurityAttributes"])
     req_config = user_call.UserItemRequestBuilderGetRequestConfiguration(query_parameters=query_params)
-    user_obj = await user_call.get(request_configuration=req_config)
+    
+    try:
+        user_obj = await user_call.get(request_configuration=req_config)
+    except ODataError as e:
+        if e.response_status_code == 404:
+            return None
+        raise
     
     csa = user_obj.custom_security_attributes.additional_data or {}
     if not csa:
@@ -34,7 +41,6 @@ async def get_user_approver(userId:str, tenantId:str, resolved_time:str):
     qp = approver_call.UserItemRequestBuilderGetQueryParameters(select=["displayName"])
     rc = approver_call.UserItemRequestBuilderGetRequestConfiguration(query_parameters=qp)
     approver_name_return = await approver_call.get(request_configuration=rc)
-    logging.info(approver_name_return.display_name)
     approver_display_name = approver_name_return.display_name or "Not Found"
 
     approver_obj = {
