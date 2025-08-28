@@ -32,9 +32,10 @@ from msgraph.generated.models.attachment import Attachment
 from msgraph.generated.models.attachment_collection_response import AttachmentCollectionResponse
 from msgraph.generated.models.file_attachment import FileAttachment
 from azure.functions import HttpResponse
+from azure.core import MatchConditions
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError, HttpResponseError
 from azure.cosmos import CosmosClient, ContainerProxy, DatabaseProxy, CosmosDict
-from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosResourceNotFoundError, CosmosResourceExistsError
+from azure.cosmos.exceptions import CosmosBatchOperationError, CosmosHttpResponseError, CosmosResourceNotFoundError, CosmosResourceExistsError
 from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient, BlobSasPermissions, generate_blob_sas
 from openai import AzureOpenAI
 from pypdf import PdfWriter
@@ -47,6 +48,7 @@ from shared.process_ai_results import process_ai_results
 from shared.populate_checkform import fillout_form
 from shared.azure_monitor import failsafe_counter, tracer, meter, initialize_logger
 from shared.get_approver import get_user_approver
+from shared.duplicate_invoice_check import DupeChecker
 
 #app = func.FunctionApp()
 app = df.DFApp()
@@ -645,11 +647,22 @@ async def upload_to_blob(message_info: dict) -> list:
             pass
 
     attachment_pairs = []
-    inv_obj_pairs = []
+    inv_obj_pairs: List[Dict] = []
     for pdf in attachments:
         inv_name = pdf.get("name")
         b64_inv_bytes: bytes = pdf.get("bytes")
         inv_bytes: bytes = base64.b64decode(b64_inv_bytes)
+        
+        ##Check for dupe (bytes)
+        dupe_check = DupeChecker(
+            invoice_bytes= inv_bytes,
+            tenant_id= tenantId,
+            user_id= user_id
+        )
+        dupe_check.check_dupe()
+        if dupe_check.is_byte_dupe:
+            logging.warning("Dupe was found, skipping processing.")
+            continue ## -> Implement global SendReply function to send dupe notif message and return pdf name to send.
 
         b64_inv_bytes_str: str = b64_inv_bytes.decode("utf-8")
         #logging.warning(f"PDF Raw Bytes: {inv_bytes}")
@@ -671,11 +684,21 @@ async def upload_to_blob(message_info: dict) -> list:
         amount = invoice_fields.get("InvoiceTotal")
         inv_date = invoice_fields.get("InvoiceDate")
         due_date = invoice_fields.get("DueDate")
+        is_revision = False
         user_inputs = {}
-        #inv_container, #cr_container
+        
+        ##Check Business Key (logical) dupe:
+        bizkey = f"bk|{vendor_name}|{inv_name}|{inv_date}|{amount}"
+        dupe_check.bk = bizkey
+        dupe_check.check_dupe()
+        bk_dupe = dupe_check.is_bizkey_dupe
 
-        invoice_blob_name = f"invoice_{inv_name}" ## Add conditional to check for existing .pdf extension? Add if not present
-        cr_blob_name = f"check_request_{inv_name}"
+        if bk_dupe and dupe_check.invoice_id:
+            id = dupe_check.invoice_id
+            is_revision = True
+
+        invoice_blob_name = f"invoice_{id}" ## Add conditional to check for existing .pdf extension? Add if not present
+        cr_blob_name = f"check_request_{id}"
 
         #Generate Invoice Object
         invoice_obj = {
@@ -695,8 +718,12 @@ async def upload_to_blob(message_info: dict) -> list:
             "user_inputs": user_inputs,
             "inv_container": invoice_container_name,
             "cr_container": cr_container_name,
-            "cr_blob": cr_blob_name
+            "cr_blob": cr_blob_name,
+            "is_revision": is_revision,
+            "byte_id": dupe_check.byte_id,
+            "bk_id": dupe_check.bk
         }
+
         # Add to returning list
         inv_obj_pairs.append(invoice_obj)
 
@@ -753,14 +780,74 @@ async def upload_to_blob(message_info: dict) -> list:
 
 @app.function_name("InitalizeInvoiceObjects")
 @app.activity_trigger(input_name="inv_obj_list")
-async def create_invoice_objects(inv_obj_list: List):
-    db_client = get_db_client()
-    cosmos_todo_container = db_client.get_container_client("Invoices")
+async def create_invoice_objects(inv_obj_list: List[dict]):
+    db_client = get_db_client().get_container_client("Invoices")
     for inv in inv_obj_list:
+        tenant_id = inv.get("tenantId")
+        user_id = inv.get("userId")
+        pk = [tenant_id, user_id]
+        ##Check revision dupe
+        if inv.get("is_revision"):
+            e_tag = db_client.read_item(
+                item= inv.get("id"),
+                partition_key= pk
+            ).get("_etag")
+
+            if e_tag:
+                try:
+                    db_client.upsert_item(
+                        body=inv,
+                        partition_key=pk,
+                        etag=e_tag,
+                        match_condition=MatchConditions.IfNotModified
+                    )
+                    logging.info("Worker won race to upsert revision")
+                except CosmosHttpResponseError as e:
+                    if e.status_code == 412:
+                        logging.warning("Peer won race to upsert revision")
+                    else:
+                        logging.warning("%s", e)
+
+            ##Add invoice to revision list here to notify user
+
+        byte_marker = {
+            "id" : inv.get("byte_id"),
+            "tenantId": tenant_id,
+            "userId": user_id,
+            "type": "marker",
+            "kind": "hash"
+        }
+
+        bk_marker = {
+            "id" : inv.get("bk_id"),
+            "tenantId": tenant_id,
+            "userId": user_id,
+            "type": "marker",
+            "kind": "bizkey"
+        }
+ 
+        ops = [
+            ("create", (inv,), {"if_none_match_etag": "*"}),
+            ("create", (byte_marker,), {"if_none_match_etag": "*"}),
+            ("create", (bk_marker,), {"if_none_match_etag": "*"})
+        ]
+
         try:
-            cosmos_todo_container.upsert_item(inv)
+
+            batch_resp = db_client.execute_item_batch(
+                batch_operations=ops,
+                partition_key=pk
+            )
+            
+            logging.info("%s", batch_resp)
+            logging.info("Worker won invoice doc transactional batch upsert")
         except CosmosHttpResponseError as e:
+            logging.info("%s", batch_resp)
             logging.error(f"Error during inital invoice object upsert: {e}")
+            raise
+        except CosmosBatchOperationError:
+            logging.info("%s", batch_resp)
+            logging.warning("Peer won invoice doc transactional batch upsert")
 
 async def return_mail(attachment_pairs: List[Dict[str,Any]]) -> List:
     

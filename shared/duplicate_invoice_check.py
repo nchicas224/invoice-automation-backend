@@ -1,5 +1,7 @@
 
 import hashlib
+import logging
+from typing import Optional
 from shared.database_client import get_db_client
 from azure.cosmos.exceptions import CosmosResourceNotFoundError, CosmosHttpResponseError
 
@@ -14,10 +16,13 @@ class DupeChecker:
         self.invoice_bytes = invoice_bytes
         self.tenant_id = tenant_id
         self.user_id = user_id
-        self._bk = None
+        self._bk: Optional[str] = None
         self.is_dupe = False
         self.is_byte_dupe = False
         self.is_bizkey_dupe = False
+        self.invoice_id: Optional[str] = None
+        self.hashed_bytes: None
+        self.byte_id = None
 
     @property
     def bk(self) -> str | None:
@@ -35,27 +40,21 @@ class DupeChecker:
         return get_db_client().get_container_client("Invoices")
     
     def check_dupe(self) -> bool:
-        if not self._bk:
-            raise ValueError("Business key must first be set on the instance object")
-        return self._is_dupe()
+        try:
+            return self._is_dupe()
+        except ValueError as e:
+            logging.warning("%s", e)
+            return self.is_dupe
 
     def _is_dupe(self) -> bool:
         db_client = self._get_db_client()
-        hashed_bytes = hashlib.sha256(self.invoice_bytes).hexdigest()
-        byte_id = f"h|{hashed_bytes}"
+        self.hashed_bytes = hashlib.sha256(self.invoice_bytes).hexdigest()
+        self.byte_id = f"h|{self.hashed_bytes}"
         
-        # byte_marker = {
-        #     "id" : byte_id,
-        #     "tenantId": self.tenant_id,
-        #     "userId": self.user_id,
-        #     "type": "marker",
-        #     "kind": "hash"
-        # }
-
         ## Check byte against possibly existing byte marker
         try:
             db_client.read_item(
-                item= byte_id,
+                item= self.byte_id,
                 partition_key= [self.tenant_id, self.user_id]  
             )
             self.is_dupe = True
@@ -69,10 +68,11 @@ class DupeChecker:
 
         ## Check BK marker
         try:
-            db_client.read_item(
+            resp = db_client.read_item(
                 item= self._bk,
                 partition_key= [self.tenant_id, self.user_id] 
             )
+            self.invoice_id = resp.get("invoice_id")
             self.is_dupe = True
             self.is_bizkey_dupe = True
         except CosmosHttpResponseError as e:
