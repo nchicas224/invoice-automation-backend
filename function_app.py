@@ -1,4 +1,5 @@
 
+import hashlib
 import os, logging, json, uuid, base64
 import zipfile
 from zoneinfo import ZoneInfo
@@ -689,8 +690,11 @@ async def upload_to_blob(message_info: dict) -> list:
         user_inputs = {}
         
         ##Check Business Key (logical) dupe:
-        bizkey = f"bk|{vendor_name}|{inv_name}|{inv_date}|{amount}"
-        dupe_check.bk = bizkey
+        ## Normalize variables in different function
+        bizkey = f"{vendor_name}|{inv_name}|{inv_date}|{amount}"
+        digest = hashlib.sha256(bizkey.encode("utf-8")).hexdigest()
+        u_safe_bk = f"bk|{digest}"
+        dupe_check.bk = u_safe_bk
         dupe_check.check_dupe()
         bk_dupe = dupe_check.is_bizkey_dupe
 
