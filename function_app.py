@@ -652,6 +652,7 @@ async def upload_to_blob(message_info: dict) -> list:
         inv_name = pdf.get("name")
         b64_inv_bytes: bytes = pdf.get("bytes")
         inv_bytes: bytes = base64.b64decode(b64_inv_bytes)
+        user_id = sender
         
         ##Check for dupe (bytes)
         dupe_check = DupeChecker(
