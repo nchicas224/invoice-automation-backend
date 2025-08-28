@@ -1,0 +1,84 @@
+
+import hashlib
+from shared.database_client import get_db_client
+from azure.cosmos.exceptions import CosmosResourceNotFoundError, CosmosHttpResponseError
+
+class DupeChecker:
+
+    def __init__(
+            self,
+            invoice_bytes: bytes,
+            tenant_id: str,
+            user_id: str,
+    ) -> None:
+        self.invoice_bytes = invoice_bytes
+        self.tenant_id = tenant_id
+        self.user_id = user_id
+        self._bk = None
+        self.is_dupe = False
+        self.is_byte_dupe = False
+        self.is_bizkey_dupe = False
+
+    @property
+    def bk(self) -> str | None:
+        return self._bk
+
+    @bk.setter
+    def bk(self, bizkey: str) -> None:
+        if bizkey and (self._bk is None or self._bk == bizkey):
+            self._bk = bizkey
+        else:
+            raise ValueError("Could not set 'bizkey'.")
+    
+    @staticmethod
+    def _get_db_client():
+        return get_db_client().get_container_client("Invoices")
+    
+    def check_dupe(self) -> bool:
+        if not self._bk:
+            raise ValueError("Business key must first be set on the instance object")
+        return self._is_dupe()
+
+    def _is_dupe(self) -> bool:
+        db_client = self._get_db_client()
+        hashed_bytes = hashlib.sha256(self.invoice_bytes).hexdigest()
+        byte_id = f"h|{hashed_bytes}"
+        
+        # byte_marker = {
+        #     "id" : byte_id,
+        #     "tenantId": self.tenant_id,
+        #     "userId": self.user_id,
+        #     "type": "marker",
+        #     "kind": "hash"
+        # }
+
+        ## Check byte against possibly existing byte marker
+        try:
+            db_client.read_item(
+                item= byte_id,
+                partition_key= [self.tenant_id, self.user_id]  
+            )
+            self.is_dupe = True
+            self.is_byte_dupe = True
+        except CosmosHttpResponseError as e:
+            if e.status_code != 404:
+                raise
+            
+        if not self._bk:
+            raise ValueError("Business key must first be set on the instance object")
+
+        ## Check BK marker
+        try:
+            db_client.read_item(
+                item= self._bk,
+                partition_key= [self.tenant_id, self.user_id] 
+            )
+            self.is_dupe = True
+            self.is_bizkey_dupe = True
+        except CosmosHttpResponseError as e:
+            if e.status_code != 404:
+                raise
+        
+        return self.is_dupe
+
+
