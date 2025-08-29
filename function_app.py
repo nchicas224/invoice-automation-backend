@@ -7,6 +7,8 @@ from zoneinfo import ZoneInfo
 import httpx
 import requests
 
+from shared.normalize import norm_amount, norm_date, norm_vendor
+
 logging.info("function_app.py loaded!")
 import secrets
 #import HelperScripts as hs
@@ -691,7 +693,13 @@ async def upload_to_blob(message_info: dict) -> list:
         
         ##Check Business Key (logical) dupe:
         ## Normalize variables in different function
+        # norm_ven = norm_vendor(vendor_name or "")
+        # norm_amnt = norm_amount(amount or "")
+        # norm_dt = norm_date(inv_date or "")
+        ## Move above functions into DI parsing for globalization
+        # Then keep the same bizkey as below
         bizkey = f"{vendor_name}|{inv_name}|{inv_date}|{amount}"
+        #bizkey = f"{norm_ven}|{inv_name}|{norm_dt}|{norm_amnt}"
         digest = hashlib.sha256(bizkey.encode("utf-8")).hexdigest()
         u_safe_bk = f"bk|{digest}"
         dupe_check.bk = u_safe_bk
@@ -702,8 +710,8 @@ async def upload_to_blob(message_info: dict) -> list:
             id = dupe_check.invoice_id
             is_revision = True
 
-        invoice_blob_name = f"invoice_{id}" ## Add conditional to check for existing .pdf extension? Add if not present
-        cr_blob_name = f"check_request_{id}"
+        invoice_blob_name = f"invoice_{id}.pdf" ## Add conditional to check for existing .pdf extension? Add if not present
+        cr_blob_name = f"check_request_{id}.pdf"
 
         #Generate Invoice Object
         invoice_obj = {
