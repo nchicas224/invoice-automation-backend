@@ -92,5 +92,5 @@ jobs:
           --slot "staging" \
           --src "release.zip" \
           
-      # - name: Check release.zip files after deployment
-      #   run: unzip -l release.zip    
+      - name: Check release.zip files after deployment
+        run: unzip -l release.zip    
