@@ -604,8 +604,10 @@ async def upload_to_blob(message_info: dict) -> list:
 
     #Get User Approver
     creation_date = datetime.now(tz=ZoneInfo("America/New_York")).isoformat()
+    # Requires input sanitation for Approver //TODO
     approver_obj: dict = await get_user_approver(sender, tenantId, creation_date)
     if not approver_obj:
+        logging.warning("[HandleAttachments] Approver missing from sender.")
         return None
 
     req_builder: MessageItemRequestBuilder = graph_client.users.by_user_id(
@@ -613,7 +615,7 @@ async def upload_to_blob(message_info: dict) -> list:
     
     attachment_return: AttachmentCollectionResponse = await req_builder.attachments.get()
 
-    logging.warning(f"Number of attachments in message: {len(attachment_return.value)}")
+    logging.info(f"Number of attachments in message: {len(attachment_return.value)}")
     attachments: List[Dict[str,Any]] = [] 
     for attach in attachment_return.value:
         logging.info(f"Attachment Info: name:{attach.name}, content_type:{attach.content_type}, size:{attach.size}")
@@ -632,6 +634,7 @@ async def upload_to_blob(message_info: dict) -> list:
     if len(attachments) == 0:
         raise ValueError("No credible attachments found.")    
     
+    ## Setup and test containers for sender-user
     sender_name_clean = sender.lower().split("@")[0]
     invoice_container_name=f"{sender_name_clean}-invoices-raw"
     cr_container_name=f"{sender_name_clean}-checkrequests-raw"
