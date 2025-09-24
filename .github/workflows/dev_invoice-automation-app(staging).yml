@@ -107,13 +107,30 @@ jobs:
       #     az account show
       #     az group list
 
-      - name: 'Deploy to Azure Functions'
+      # - name: 'Deploy to Azure Functions'
+      #   run: |
+      #     az functionapp deployment source config-zip \
+      #     --resource-group "rg-invoice-automation" \
+      #     --name "invoice-automation-app" \
+      #     --slot "staging" \
+      #     --src "./dist/release.zip" \
+
+      - name: Deploy to Function App (platform-managed RFP)
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: invoice-automation-app
+          slot-name: staging
+          package: ./dist/release.zip
+
+      - name: Verify Mounted Package
         run: |
-          az functionapp deployment source config-zip \
-          --resource-group "rg-invoice-automation" \
-          --name "invoice-automation-app" \
-          --slot "staging" \
-          --src "./dist/release.zip" \
+          URL=$(az functionapp config appsettings list \
+          --resource-group rg-invoice-automation \
+          --name invoice-automation-app \
+          --slot staging \
+          --query "[?name=='WEBSITE_RUN_FROM_PACKAGE'].value" -o tsv)
+          curl -sI "$URL" | sed -n '1,6p'
+          curl -s --range 0-3 "$URL" | xxd -p
           
       - name: Check release.zip files after deployment
-        run: unzip -l release.zip | head -n 40   
+        run: unzip -l ./dist/release.zip | head -n 40   
