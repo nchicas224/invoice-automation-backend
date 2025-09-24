@@ -119,7 +119,7 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: invoice-automation-app
-          slot-name: staging
+          slot-name: 'staging'
           package: ./dist/release.zip
 
       - name: Verify Mounted Package
