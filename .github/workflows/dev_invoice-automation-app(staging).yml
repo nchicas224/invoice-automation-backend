@@ -49,17 +49,20 @@ jobs:
           pip install -r requirements.txt --target=".python_packages/lib/site-packages"
           echo "Zipping function app contents..."
           zip -r release.zip . -x "venv/*" ".venv/*" ".git/*" ".vscode/*" "__pycache__/*" "*.pyc" "*.pyo" "*.pyd"
-          echo "Current directory:"
-          pwd
-          echo "Contents:"
-          ls -la  
+          du -h release.zip
+          unzip -l release.zip | sed -n '1,40p'
+          unzip -l release.zip | grep -E "host\.json|function_app\.py" || { echo "Missing files in zip"; exit 1;}
+        # echo "Current directory:"
+        # pwd
+        # echo "Contents:"
+        # ls -la  
 
       - name: Import smoke test
         shell: bash
         run: |
           echo "Testing import of function_app.py"
           set -ex
-          PYTHONPATH=.python_packages/lib/site-packages python -c "import function_app"
+          PYTHONPATH=.python_packages/lib/site-packages:. python -c "import function_app"
 
       # - name: Unzip artifact into staging directory for deploymentt
       #   run: |
