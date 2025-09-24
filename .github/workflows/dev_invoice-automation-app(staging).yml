@@ -70,6 +70,26 @@ jobs:
       #     pwd
       #     echo "Contents:"
       #     ls -la
+
+      - name: Upload Artifact (packaged app)
+        uses: actions/upload-artifact@v4
+        with:
+          name: function-app-release
+          path: release.zip
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Download Artifact (packaged app)
+        uses: actions/download-artifact@v4
+        with:
+          name: function-app-release
+          path: ./dist
+      
+      - name: Inspect downloaded artifact
+        run: |
+            ls -la ./dist
+            unzip -l ./dist/release.zip | head -n 40
+      
         
       - name: Login to Azure using OIDC
         uses: azure/login@v2
@@ -93,7 +113,7 @@ jobs:
           --resource-group "rg-invoice-automation" \
           --name "invoice-automation-app" \
           --slot "staging" \
-          --src "release.zip" \
+          --src "./dist/release.zip" \
           
       - name: Check release.zip files after deployment
-        run: unzip -l release.zip    
+        run: unzip -l release.zip | head -n 40   
