@@ -190,7 +190,6 @@ jobs:
           --slot-settings WEBSITE_RUN_FROM_PACKAGE="$RFP_URL"
 
           az functionapp restart --resource-group rg-invoice-automation --name invoice-automation-app --slot staging
-          az functionapp sync-functions --resource-group rg-invoice-automation --name invoice-automation-app --slot staging
 
       - name: Verify Mounted Package
         run: |
