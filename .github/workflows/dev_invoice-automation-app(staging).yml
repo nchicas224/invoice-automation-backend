@@ -122,6 +122,7 @@ jobs:
           --name invoice-automation-app \
           --slot staging \
           --src ./dist/release.zip
+          --debug
 
       - name: Verify Mounted Package
         run: |
