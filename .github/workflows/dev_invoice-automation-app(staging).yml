@@ -121,7 +121,7 @@ jobs:
           --resource-group rg-invoice-automation \
           --name invoice-automation-app \
           --slot staging \
-          --src ./dist/release.zip
+          --src ./dist/release.zip \
           --debug
 
       - name: Verify Mounted Package
