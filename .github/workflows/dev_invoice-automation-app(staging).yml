@@ -153,10 +153,15 @@ jobs:
           --overwrite
 
           START=$(date -u -d '-5 minutes' +%Y-%m-%dT%H:%M:%SZ)
-          EXPIRY=$(date -u -d '+3650 days' +%Y-%m-%dT%H:%M:%SZ)
+          EXPIRY=$(date -u -d '+6 days' +%Y-%m-%dT%H:%M:%SZ)
+
+          set +x
+          KEY=$(az storage account keys list -g rg-invoice-automation -n rginvoiceautomationb34a --query "[0].value" -o tsv)
+          echo "::add-mask::KEY"
+          set -x
 
           SAS=$(az storage blob generate-sas \
-            --as-user --https-only \
+            --account-key "$KEY" --https-only \
             --account-name "$SA_NAME" \
             --container-name "$CONTAINER" \
             --name "$NAME" \
@@ -164,6 +169,8 @@ jobs:
             --start "$START" \
             --expiry "$EXPIRY" \
             -o tsv)
+
+          unset KEY
 
           echo "RFP_URL=https://${SA_NAME}.blob.core.windows.net/${CONTAINER}/${NAME}?${SAS}" >> $GITHUB_ENV
 
