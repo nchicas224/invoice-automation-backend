@@ -115,14 +115,75 @@ jobs:
       #     --slot "staging" \
       #     --src "./dist/release.zip" \
 
-      - name: Deploy to Function App (platform-managed RFP)
+      # - name: Deploy to Function App (platform-managed RFP)
+      #   run: |
+      #     az functionapp deployment source config-zip \
+      #     --resource-group rg-invoice-automation \
+      #     --name invoice-automation-app \
+      #     --slot staging \
+      #     --src ./dist/release.zip \
+      #     --debug
+
+      - name: Clear stale Run-From-Package settings (if any)
         run: |
-          az functionapp deployment source config-zip \
+          az functionapp config appsettings delete \
           --resource-group rg-invoice-automation \
           --name invoice-automation-app \
           --slot staging \
-          --src ./dist/release.zip \
-          --debug
+          --setting-names WEBSITE_RUN_FROM_URL SCM_RUN_FROM_PACKAGE || true
+
+      - name: Upload package to Blob (explicit)
+        id: upload_rfp
+        env:
+          SA_NAME: rginvoiceautomationb34a
+          CONTAINER: function-releases
+        run: |
+          set -euxo pipefail
+          TS=$(date -u +%Y%m%d%H%M%S)
+          SHA=$(sha256sum ./dist/release.zip | cut -d' ' -f1 | cut -c1-12)
+          NAME="${TS}-${GITHUB_RUN_ID}-${SHA}.zip"
+
+          az storage blob upload \
+          --auth-mode login \
+          --account-name "$SA_NAME" \
+          --container_name "$CONTAINER" \
+          --name "$NAME" \
+          --file ./dist/release.zip \
+          --content-type application/zip \
+          --overwrite
+
+          START=$(date -u -d '-5 minutes' +%Y-%m-%dT%H:%M:%SZ)
+          EXPIRY=$(date -u -d '+3650 days' +%Y-%m-%dT%H:%M:%SZ)
+
+          SAS=$(az storage blob generate sas \
+            --as-user --https-only \
+            --account-name "$SA_NAME" \
+            --container-name "$CONTAINER" \
+            --name "$NAME" \
+            --permissions r \
+            --start "$START" \
+            --expiry "$EXPIRY" \
+            -o tsv)
+
+          echo "RFP_URL=https://${SA_NAME}.blob.core.windows.net/${CONTAINER}/${NAME}?${SAS}" >> $GITHUB_ENV
+
+      - name: Sanity Check on URL
+        run: |
+          echo "RFP_URL = $RFP_URL"
+          curl -sI "$RFP_URL" | sed -n '1,8p'
+          SIG=$(curl -s --range 0-3 "$RFP_URL" | xxd -p)
+          test "$SIG" = "504b0304" || { echo "Not a zip (magic=$SIG)"; exit 1; }
+
+      - name: Point slot to the SAS Package, restart and sync
+        run: |
+          az functionapp config appsettings set \
+          --resource-group rg-invoice-automation \
+          --name invoice-automation-app \
+          --slot staging \
+          --slot-settings WEBSITE_RUN_FROM_PACKAGE="$RFP_URL"
+
+          az functionapp restart --resource-group rg-invoice-automation --name invoice-automation-app --slot staging
+          az functionapp sync-functions --resource-group rg-invoice-automation --name invoice-automation-app --slot staging
 
       - name: Verify Mounted Package
         run: |
@@ -131,6 +192,7 @@ jobs:
           --name invoice-automation-app \
           --slot staging \
           --query "[?name=='WEBSITE_RUN_FROM_PACKAGE'].value" -o tsv)
+          echo "Mounted RFP URL: $URL"
           curl -sI "$URL" | sed -n '1,6p'
           curl -s --range 0-3 "$URL" | xxd -p
           
