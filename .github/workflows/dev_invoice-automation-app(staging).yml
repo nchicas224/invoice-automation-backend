@@ -130,7 +130,7 @@ jobs:
           --resource-group rg-invoice-automation \
           --name invoice-automation-app \
           --slot staging \
-          --setting-names WEBSITE_RUN_FROM_URL SCM_RUN_FROM_PACKAGE || true
+          --setting-names WEBSITE_RUN_FROM_PACKAGE SCM_RUN_FROM_PACKAGE || true
 
       - name: Upload package to Blob (explicit)
         id: upload_rfp
@@ -146,7 +146,7 @@ jobs:
           az storage blob upload \
           --auth-mode login \
           --account-name "$SA_NAME" \
-          --container_name "$CONTAINER" \
+          --container-name "$CONTAINER" \
           --name "$NAME" \
           --file ./dist/release.zip \
           --content-type application/zip \
