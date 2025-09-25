@@ -155,7 +155,7 @@ jobs:
           START=$(date -u -d '-5 minutes' +%Y-%m-%dT%H:%M:%SZ)
           EXPIRY=$(date -u -d '+3650 days' +%Y-%m-%dT%H:%M:%SZ)
 
-          SAS=$(az storage blob generate sas \
+          SAS=$(az storage blob generate-sas \
             --as-user --https-only \
             --account-name "$SA_NAME" \
             --container-name "$CONTAINER" \
