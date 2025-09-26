@@ -116,7 +116,7 @@ jobs:
           --overwrite
 
           START=$(date -u -d '-5 minutes' +%Y-%m-%dT%H:%M:%SZ)
-          EXPIRY=$(date -u -d '+6 days' +%Y-%m-%dT%H:%M:%SZ)
+          EXPIRY=$(date -u -d '+3650' +%Y-%m-%dT%H:%M:%SZ)
 
           set +x
           KEY=$(az storage account keys list -g rg-invoice-automation -n rginvoiceautomationb34a --query "[0].value" -o tsv)
