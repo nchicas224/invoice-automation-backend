@@ -52,10 +52,6 @@ jobs:
           du -h release.zip
           unzip -l release.zip | sed -n '1,40p'
           unzip -l release.zip | grep -E "host\.json|function_app\.py" || { echo "Missing files in zip"; exit 1;}
-        # echo "Current directory:"
-        # pwd
-        # echo "Contents:"
-        # ls -la  
 
       - name: Import smoke test
         shell: bash
@@ -63,13 +59,6 @@ jobs:
           echo "Testing import of function_app.py"
           set -ex
           PYTHONPATH=.python_packages/lib/site-packages:. python -c "import function_app"
-
-      # - name: Unzip artifact into staging directory for deploymentt
-      #   run: |
-      #     echo "Current directory:"
-      #     pwd
-      #     echo "Contents:"
-      #     ls -la
 
       - name: Upload Artifact (packaged app)
         uses: actions/upload-artifact@v4
@@ -97,32 +86,6 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      # - name: Show Current Dir & Show AZ account status
-      #   run: |
-      #     echo "Current directory:"
-      #     pwd
-      #     echo "Contents:"
-      #     ls -la
-      #     az account show
-      #     az group list
-
-      # - name: 'Deploy to Azure Functions'
-      #   run: |
-      #     az functionapp deployment source config-zip \
-      #     --resource-group "rg-invoice-automation" \
-      #     --name "invoice-automation-app" \
-      #     --slot "staging" \
-      #     --src "./dist/release.zip" \
-
-      # - name: Deploy to Function App (platform-managed RFP)
-      #   run: |
-      #     az functionapp deployment source config-zip \
-      #     --resource-group rg-invoice-automation \
-      #     --name invoice-automation-app \
-      #     --slot staging \
-      #     --src ./dist/release.zip \
-      #     --debug
 
       - name: Clear stale Run-From-Package settings (if any)
         run: |
