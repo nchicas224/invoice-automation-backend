@@ -53,6 +53,7 @@ from shared.azure_monitor import failsafe_counter, tracer, meter, initialize_log
 from shared.get_approver import get_user_approver
 from shared.duplicate_invoice_check import DupeChecker
 
+#demo
 #app = func.FunctionApp()
 app = df.DFApp()
 
