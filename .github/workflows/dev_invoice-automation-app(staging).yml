@@ -90,7 +90,7 @@ jobs:
       - name: Clear stale Run-From-Package settings (if any)
         run: |
           az functionapp config appsettings delete \
-          --resource-group rg-invoice-automation \
+          --resource-group REDACTED \
           --name invoice-automation-app \
           --slot staging \
           --setting-names WEBSITE_RUN_FROM_PACKAGE SCM_RUN_FROM_PACKAGE || true
@@ -98,7 +98,7 @@ jobs:
       - name: Upload package to Blob (explicit)
         id: upload_rfp
         env:
-          SA_NAME: rginvoiceautomationb34a
+          SA_NAME: REDACTED
           CONTAINER: function-releases
         run: |
           set -euxo pipefail
@@ -119,7 +119,7 @@ jobs:
           EXPIRY=$(date -u -d '+3650 days' +%Y-%m-%dT%H:%M:%SZ)
 
           set +x
-          KEY=$(az storage account keys list -g rg-invoice-automation -n rginvoiceautomationb34a --query "[0].value" -o tsv)
+          KEY=$(az storage account keys list -g REDACTED -n REDACTED --query "[0].value" -o tsv)
           echo "::add-mask::KEY"
           set -x
 
@@ -147,17 +147,17 @@ jobs:
       - name: Point slot to the SAS Package, restart and sync
         run: |
           az functionapp config appsettings set \
-          --resource-group rg-invoice-automation \
+          --resource-group REDACTED \
           --name invoice-automation-app \
           --slot staging \
           --slot-settings WEBSITE_RUN_FROM_PACKAGE="$RFP_URL"
 
-          az functionapp restart --resource-group rg-invoice-automation --name invoice-automation-app --slot staging
+          az functionapp restart --resource-group REDACTED --name invoice-automation-app --slot staging
 
       - name: Verify Mounted Package
         run: |
           URL=$(az functionapp config appsettings list \
-          --resource-group rg-invoice-automation \
+          --resource-group REDACTED \
           --name invoice-automation-app \
           --slot staging \
           --query "[?name=='WEBSITE_RUN_FROM_PACKAGE'].value" -o tsv)
@@ -167,3 +167,4 @@ jobs:
           
       - name: Check release.zip files after deployment
         run: unzip -l ./dist/release.zip | head -n 40   
+
