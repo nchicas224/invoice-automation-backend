@@ -71,7 +71,7 @@ async def get_roles(req: func.HttpRequest) -> func.HttpResponse:
     )
 
 
-# Webhook Notification for new emails landing in invoices@lcf
+# Webhook Notification for new emails landing in invoices@org
 @app.function_name(name="NotifyNewMailHandshake")
 @app.route(
     route="NotifyNewMail",
@@ -86,7 +86,7 @@ async def notify_handshake(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse(status_code=405)
     
 
-# Webhook Notification for new emails landing in invoices@lcf
+# Webhook Notification for new emails landing in invoices@org
 @app.function_name(name="NotifyNewMailPost")
 @app.route(
     route="NotifyNewMail",
@@ -173,8 +173,8 @@ async def ping_wake_timer(timer: func.TimerRequest) -> None:
     if not _cold_start:
         return
     
-    host = "https://invoice-automation-app-staging.azurewebsites.net"
-    scope = "api://5d0f439b-3fbd-4c08-9003-f3c97e5c98d6/.default"
+    host = "os.environ[HOST]"
+    scope = "os.environ[SCOPE]"
     deadline = asyncio.get_event_loop().time() + 60.0
 
     creds = DefaultAzureCredential()
@@ -419,7 +419,7 @@ async def update_db_subscription(creation_results: dict): ### NEED TO UNBLOAT TH
         cosmos_container.upsert_item({
             "id": result_id,
             "subscription": "subscription",
-            "notifcationUrl": "invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
+            "notifcationUrl": "invoice-automation-app.cloudhost.com/api/NotifyNewMail",
             "resource": f"/users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages",
             "expirationDateTime": next_expiry,
             "init_at": init_time
@@ -458,7 +458,7 @@ async def update_db_subscription(creation_results: dict): ### NEED TO UNBLOAT TH
             cosmos_container_archive.upsert_item({
                 "id": old_sub_id,
                 "archive_sub_id": "archived",
-                "notifcationUrl": "invoice-automation-app-staging.azurewebsites.net/api/NotifyNewMail",
+                "notifcationUrl": "invoice-automation-app.cloudhost.com/api/NotifyNewMail",
                 "resource": f"/users/{os.environ["INVOICES_MAILBOX_ID"]}/mailFolders('Inbox')/messages",
                 "expirationDateTime": old_sub_expiry,
                 "init_at": old_init
